@@ -111,7 +111,8 @@ const AppContent: React.FC = () => {
           try {
             // If the user logs in but isn't in the DB, create a profile
             // We can still use the email check to bootstrap the first admin/teacher
-            const isPrimaryAdmin = firebaseUser.email === "jaisalcomputer2@gmail.com";
+            const admins = ["jaisalcomputer2@gmail.com", "dqjaisal@gmail.com"];
+            const isPrimaryAdmin = firebaseUser.email && admins.includes(firebaseUser.email.toLowerCase());
             const newRole = isPrimaryAdmin ? 'teacher' : 'student';
             
             await setDoc(userDocRef, {
@@ -126,7 +127,9 @@ const AppContent: React.FC = () => {
           } catch (error) {
             console.error("Error creating user profile:", error);
             // Fallback role if profile creation fails
-            setRole(firebaseUser.email === "jaisalcomputer2@gmail.com" ? 'teacher' : 'student');
+            const admins = ["jaisalcomputer2@gmail.com", "dqjaisal@gmail.com"];
+            const isPrimaryAdmin = firebaseUser.email && admins.includes(firebaseUser.email.toLowerCase());
+            setRole(isPrimaryAdmin ? 'teacher' : 'student');
           }
         }
         announce(`${t.login} ${firebaseUser.displayName || firebaseUser.email}`);
