@@ -23,7 +23,7 @@ export const TeacherPanel: React.FC = () => {
   const [generatingQuiz, setGeneratingQuiz] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const { announce, t } = useA11y();
+  const { announce, t, language } = useA11y();
 
   useEffect(() => {
     const q = query(collection(db, 'lessons'), orderBy('order', 'asc'));
@@ -203,18 +203,19 @@ export const TeacherPanel: React.FC = () => {
   };
 
   const generateQuizWithAI = async () => {
-    if (!textContent || textContent.length < 20) {
-      toast.error('Please add more lesson content first');
+    if (!textContent || textContent.trim().length < 20) {
+      toast.error(language === 'en' ? 'Please add more lesson content first' : 'പാഠഭാഗം കുറച്ചുകൂടി ചേർക്കുക');
       return;
     }
 
     setGeneratingQuiz(true);
     try {
+      // Use gemini-flash-latest for better stability
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-flash-latest",
         contents: `Generate a 3-question multiple choice quiz in Malayalam based on this text: "${textContent}". 
-        Return a JSON array where each object has "question" (string), "options" (array of 3 strings), and "correctAnswer" (number index 0-2).`,
+        Return ONLY a JSON array where each object has "question" (string), "options" (array of exactly 3 strings), and "correctAnswer" (number index 0-2).`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -237,14 +238,20 @@ export const TeacherPanel: React.FC = () => {
         }
       });
 
-      const generated = JSON.parse(response.text || '[]');
-      if (generated.length > 0) {
-        setQuizQuestions(generated);
-        toast.success('Quiz generated successfully!');
+      if (!response.text) {
+        throw new Error('Empty response from AI');
       }
-    } catch (error) {
-      console.error(error);
-      toast.error('Failed to generate quiz');
+
+      const generated = JSON.parse(response.text);
+      if (Array.isArray(generated) && generated.length > 0) {
+        setQuizQuestions(generated);
+        toast.success(language === 'en' ? 'Quiz generated successfully!' : 'ക്വിസ് നിർമ്മിച്ചു!');
+      } else {
+        throw new Error('Invalid quiz format');
+      }
+    } catch (error: any) {
+      console.error("AI Quiz Generation Error:", error);
+      toast.error(language === 'en' ? 'Failed to generate quiz. Please try again.' : 'ക്വിസ് നിർമ്മിക്കാൻ സാധിച്ചില്ല. വീണ്ടും ശ്രമിക്കുക.');
     } finally {
       setGeneratingQuiz(false);
     }
