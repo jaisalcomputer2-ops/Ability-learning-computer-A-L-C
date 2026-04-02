@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../firebase';
-import { collection, addDoc, query, onSnapshot, deleteDoc, doc, updateDoc, Timestamp, orderBy } from 'firebase/firestore';
-import { Plus, Trash2, BookOpen, Music, HelpCircle, Save, AlertTriangle, Edit3, X } from 'lucide-react';
+import { collection, addDoc, query, onSnapshot, deleteDoc, doc, updateDoc, Timestamp, orderBy, where, getDocs } from 'firebase/firestore';
+import { Plus, Trash2, BookOpen, Music, HelpCircle, Save, AlertTriangle, Edit3, X, BrainCircuit, Sparkles, Loader2 } from 'lucide-react';
 import { useA11y } from './A11yProvider';
+import { GoogleGenAI, Type } from "@google/genai";
 import toast from 'react-hot-toast';
 
 export const TeacherPanel: React.FC = () => {
@@ -12,15 +13,20 @@ export const TeacherPanel: React.FC = () => {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('');
   const [level, setLevel] = useState('Basic');
+  const [order, setOrder] = useState<number>(0);
   const [textContent, setTextContent] = useState('');
+  const [quizQuestions, setQuizQuestions] = useState<any[]>([
+    { question: '', options: ['', '', ''], correctAnswer: 0 }
+  ]);
   const [audioUrl, setAudioUrl] = useState('');
   const [loading, setLoading] = useState(false);
+  const [generatingQuiz, setGeneratingQuiz] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const { announce, t } = useA11y();
 
   useEffect(() => {
-    const q = query(collection(db, 'lessons'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'lessons'), orderBy('order', 'asc'));
     const unsubscribeLessons = onSnapshot(q, (snapshot) => {
       setLessons(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => {
@@ -84,9 +90,12 @@ export const TeacherPanel: React.FC = () => {
         level,
         textContent,
         audioUrl,
+        order: Number(order),
         teacherId: auth.currentUser?.uid,
         updatedAt: Timestamp.now()
       };
+
+      let lessonId = editingId;
 
       if (editingId) {
         await updateDoc(doc(db, 'lessons', editingId), lessonData);
@@ -97,25 +106,38 @@ export const TeacherPanel: React.FC = () => {
           ...lessonData,
           createdAt: Timestamp.now()
         });
+        lessonId = docRef.id;
+        toast.success('Lesson saved!');
+      }
+
+      // Save/Update Quiz
+      if (lessonId) {
+        const quizQuery = query(collection(db, 'quizzes'), where('lessonId', '==', lessonId));
+        const quizSnapshot = await getDocs(quizQuery);
         
-        await addDoc(collection(db, 'quizzes'), {
-          lessonId: docRef.id,
-          questions: [
-            {
-              question: `What is the main topic of ${title}?`,
-              options: [category, 'Something else', 'None of the above'],
-              correctAnswer: 0
-            }
-          ]
-        });
-        toast.success('Lesson and sample quiz added!');
+        const quizData = {
+          lessonId,
+          questions: quizQuestions.filter(q => q.question.trim() !== ''),
+          updatedAt: Timestamp.now()
+        };
+
+        if (!quizSnapshot.empty) {
+          await updateDoc(doc(db, 'quizzes', quizSnapshot.docs[0].id), quizData);
+        } else {
+          await addDoc(collection(db, 'quizzes'), {
+            ...quizData,
+            createdAt: Timestamp.now()
+          });
+        }
       }
 
       setTitle('');
       setCategory('');
       setLevel('Basic');
+      setOrder(0);
       setTextContent('');
       setAudioUrl('');
+      setQuizQuestions([{ question: '', options: ['', '', ''], correctAnswer: 0 }]);
       announce(t.saveLesson);
     } catch (error) {
       console.error(error);
@@ -125,13 +147,24 @@ export const TeacherPanel: React.FC = () => {
     }
   };
 
-  const handleEdit = (lesson: any) => {
+  const handleEdit = async (lesson: any) => {
     setEditingId(lesson.id);
     setTitle(lesson.title);
     setCategory(lesson.category);
     setLevel(lesson.level || 'Basic');
+    setOrder(lesson.order || 0);
     setTextContent(lesson.textContent);
     setAudioUrl(lesson.audioUrl || '');
+    
+    // Fetch quiz questions
+    const quizQuery = query(collection(db, 'quizzes'), where('lessonId', '==', lesson.id));
+    const quizSnapshot = await getDocs(quizQuery);
+    if (!quizSnapshot.empty) {
+      setQuizQuestions(quizSnapshot.docs[0].data().questions);
+    } else {
+      setQuizQuestions([{ question: '', options: ['', '', ''], correctAnswer: 0 }]);
+    }
+    
     window.scrollTo({ top: 0, behavior: 'smooth' });
     announce(`${t.editLesson}: ${lesson.title}`);
   };
@@ -141,8 +174,80 @@ export const TeacherPanel: React.FC = () => {
     setTitle('');
     setCategory('');
     setLevel('Basic');
+    setOrder(0);
     setTextContent('');
     setAudioUrl('');
+    setQuizQuestions([{ question: '', options: ['', '', ''], correctAnswer: 0 }]);
+  };
+
+  const addQuizQuestion = () => {
+    setQuizQuestions([...quizQuestions, { question: '', options: ['', '', ''], correctAnswer: 0 }]);
+  };
+
+  const removeQuizQuestion = (index: number) => {
+    setQuizQuestions(quizQuestions.filter((_, i) => i !== index));
+  };
+
+  const updateQuizQuestion = (index: number, field: string, value: any) => {
+    const updated = [...quizQuestions];
+    updated[index] = { ...updated[index], [field]: value };
+    setQuizQuestions(updated);
+  };
+
+  const updateQuizOption = (qIndex: number, oIndex: number, value: string) => {
+    const updated = [...quizQuestions];
+    const options = [...updated[qIndex].options];
+    options[oIndex] = value;
+    updated[qIndex] = { ...updated[qIndex], options };
+    setQuizQuestions(updated);
+  };
+
+  const generateQuizWithAI = async () => {
+    if (!textContent || textContent.length < 20) {
+      toast.error('Please add more lesson content first');
+      return;
+    }
+
+    setGeneratingQuiz(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Generate a 3-question multiple choice quiz in Malayalam based on this text: "${textContent}". 
+        Return a JSON array where each object has "question" (string), "options" (array of 3 strings), and "correctAnswer" (number index 0-2).`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                question: { type: Type.STRING },
+                options: { 
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  minItems: 3,
+                  maxItems: 3
+                },
+                correctAnswer: { type: Type.INTEGER }
+              },
+              required: ["question", "options", "correctAnswer"]
+            }
+          }
+        }
+      });
+
+      const generated = JSON.parse(response.text || '[]');
+      if (generated.length > 0) {
+        setQuizQuestions(generated);
+        toast.success('Quiz generated successfully!');
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to generate quiz');
+    } finally {
+      setGeneratingQuiz(false);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -240,6 +345,20 @@ export const TeacherPanel: React.FC = () => {
               </select>
             </div>
             <div>
+              <label className="block text-lg font-bold mb-2" htmlFor="order">{t.order}</label>
+              <input
+                id="order"
+                type="number"
+                value={order}
+                onChange={(e) => setOrder(Number(e.target.value))}
+                className="w-full p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xl outline-none focus:ring-4 focus:ring-blue-500"
+                placeholder="Lesson Order (1,2,3)"
+                required
+              />
+            </div>
+          </div>
+          <div className="grid md:grid-cols-1 gap-6">
+            <div>
               <label className="block text-lg font-bold mb-2" htmlFor="audioUrl">{t.audioUrl}</label>
               <input
                 id="audioUrl"
@@ -261,17 +380,90 @@ export const TeacherPanel: React.FC = () => {
               required
             />
           </div>
-          <div>
-            <label className="block text-lg font-bold mb-2" htmlFor="audioUrl">{t.audioUrl}</label>
-            <input
-              id="audioUrl"
-              type="url"
-              value={audioUrl}
-              onChange={(e) => setAudioUrl(e.target.value)}
-              className="w-full p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xl outline-none focus:ring-4 focus:ring-blue-500"
-              placeholder="https://example.com/audio.mp3"
-            />
+
+          <div className="border-t-2 border-slate-100 dark:border-slate-800 pt-8 mt-4">
+            <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
+              <BrainCircuit className="text-blue-600" /> {t.startQuiz}
+            </h3>
+            
+            <div className="grid gap-8">
+              {quizQuestions.map((q, qIndex) => (
+                <div key={qIndex} className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl border-2 border-slate-100 dark:border-slate-800 relative">
+                  <button
+                    type="button"
+                    onClick={() => removeQuizQuestion(qIndex)}
+                    className="absolute top-4 right-4 p-2 text-red-500 hover:bg-red-50 rounded-lg dark:hover:bg-red-900/20"
+                    aria-label={t.removeQuestion}
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                  
+                  <div className="grid gap-4">
+                    <div>
+                      <label className="block font-bold mb-1">{t.questionText} {qIndex + 1}</label>
+                      <input
+                        type="text"
+                        value={q.question}
+                        onChange={(e) => updateQuizQuestion(qIndex, 'question', e.target.value)}
+                        className="w-full p-3 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-lg outline-none focus:ring-4 focus:ring-blue-500"
+                        placeholder="e.g. Desktop എന്താണ്?"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="grid md:grid-cols-3 gap-4">
+                      {q.options.map((opt: string, oIndex: number) => (
+                        <div key={oIndex}>
+                          <label className="block font-bold mb-1">{t.option} {oIndex + 1}</label>
+                          <input
+                            type="text"
+                            value={opt}
+                            onChange={(e) => updateQuizOption(qIndex, oIndex, e.target.value)}
+                            className="w-full p-3 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-lg outline-none focus:ring-4 focus:ring-blue-500"
+                            required
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div>
+                      <label className="block font-bold mb-1">{t.correctAnswer}</label>
+                      <select
+                        value={q.correctAnswer}
+                        onChange={(e) => updateQuizQuestion(qIndex, 'correctAnswer', Number(e.target.value))}
+                        className="w-full p-3 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-lg outline-none focus:ring-4 focus:ring-blue-500"
+                      >
+                        {q.options.map((_: any, i: number) => (
+                          <option key={i} value={i}>{t.option} {i + 1}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              <div className="flex flex-wrap gap-4">
+                <button
+                  type="button"
+                  onClick={addQuizQuestion}
+                  className="flex-1 flex items-center justify-center gap-2 py-4 border-2 border-dashed border-slate-300 rounded-2xl text-xl font-bold text-slate-500 hover:border-blue-500 hover:text-blue-600 dark:border-slate-700"
+                >
+                  <Plus /> {t.addQuestion}
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={generateQuizWithAI}
+                  disabled={generatingQuiz}
+                  className="flex-1 flex items-center justify-center gap-2 py-4 bg-purple-50 border-2 border-purple-200 rounded-2xl text-xl font-bold text-purple-600 hover:bg-purple-100 dark:bg-purple-900/20 dark:border-purple-800 disabled:opacity-50"
+                >
+                  {generatingQuiz ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                  {generatingQuiz ? t.generating : t.generateQuiz}
+                </button>
+              </div>
+            </div>
           </div>
+
           <button
             type="submit"
             disabled={loading}

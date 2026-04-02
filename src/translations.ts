@@ -44,7 +44,17 @@ export const translations = {
     edit: "Edit",
     level: "Level",
     basic: "Basic",
-    advanced: "Advanced"
+    advanced: "Advanced",
+    order: "Lesson Order",
+    addQuestion: "Add Quiz Question",
+    questionText: "Question Text",
+    option: "Option",
+    correctAnswer: "Correct Answer Index (0, 1, 2...)",
+    removeQuestion: "Remove Question",
+    generateQuiz: "Generate Quiz with AI",
+    generating: "Generating...",
+    practiceNeeded: "More practice needed on this lesson",
+    goodJob: "Good job! Continue learning"
   },
   ml: {
     appName: "എബിലിറ്റി കമ്പ്യൂട്ടർ ലേണിംഗ്",
@@ -91,7 +101,17 @@ export const translations = {
     edit: "തിരുത്തുക",
     level: "നില",
     basic: "അടിസ്ഥാനം",
-    advanced: "ഉന്നതം"
+    advanced: "ഉന്നതം",
+    order: "പാഠത്തിൻ്റെ ക്രമം",
+    addQuestion: "ക്വിസ് ചോദ്യം ചേർക്കുക",
+    questionText: "ചോദ്യം",
+    option: "ഓപ്ഷൻ",
+    correctAnswer: "ശരിയായ ഉത്തരത്തിൻ്റെ ഇൻഡക്സ് (0, 1, 2...)",
+    removeQuestion: "ചോദ്യം ഒഴിവാക്കുക",
+    generateQuiz: "AI ഉപയോഗിച്ച് ക്വിസ് നിർമ്മിക്കുക",
+    generating: "നിർമ്മിക്കുന്നു...",
+    practiceNeeded: "ഈ പാഠഭാഗം കൂടുതൽ പരിശീലിക്കേണ്ടതുണ്ട്",
+    goodJob: "നന്നായിരിക്കുന്നു! പഠനം തുടരുക"
   }
 };
 

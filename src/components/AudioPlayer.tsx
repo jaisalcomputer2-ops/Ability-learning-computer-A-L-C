@@ -6,10 +6,11 @@ import { useA11y } from './A11yProvider';
 interface AudioPlayerProps {
   url: string;
   onPositionUpdate?: (position: number) => void;
+  onComplete?: () => void;
   initialPosition?: number;
 }
 
-export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, onPositionUpdate, initialPosition = 0 }) => {
+export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, onPositionUpdate, onComplete, initialPosition = 0 }) => {
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(initialPosition);
   const [duration, setDuration] = useState(0);
@@ -28,7 +29,10 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, onPositionUpdate,
       },
       onplay: () => setPlaying(true),
       onpause: () => setPlaying(false),
-      onend: () => setPlaying(false),
+      onend: () => {
+        setPlaying(false);
+        onComplete?.();
+      },
     });
 
     const interval = setInterval(() => {

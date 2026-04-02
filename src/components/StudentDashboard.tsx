@@ -12,11 +12,12 @@ export const StudentDashboard: React.FC = () => {
   const [selectedLesson, setSelectedLesson] = useState<any>(null);
   const [quiz, setQuiz] = useState<any>(null);
   const [progress, setProgress] = useState<any>(null);
+  const [allProgress, setAllProgress] = useState<Record<string, any>>({});
   const [view, setView] = useState<'list' | 'lesson' | 'quiz'>('list');
   const { announce, t } = useA11y();
 
   useEffect(() => {
-    const q = query(collection(db, 'lessons'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'lessons'), orderBy('order', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setLessons(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => {
@@ -24,8 +25,33 @@ export const StudentDashboard: React.FC = () => {
       toast.error("Failed to load lessons");
     });
 
+    if (auth.currentUser) {
+      const pq = query(collection(db, 'progress'), where('userId', '==', auth.currentUser.uid));
+      const unsubscribeProgress = onSnapshot(pq, (snapshot) => {
+        const progMap: Record<string, any> = {};
+        snapshot.docs.forEach(doc => {
+          progMap[doc.data().lessonId] = doc.data();
+        });
+        setAllProgress(progMap);
+      });
+      return () => {
+        unsubscribe();
+        unsubscribeProgress();
+      };
+    } else {
+      // Load anonymous progress from localStorage
+      const progMap: Record<string, any> = {};
+      lessons.forEach(lesson => {
+        const localData = localStorage.getItem(`progress_${lesson.id}`);
+        if (localData) {
+          progMap[lesson.id] = JSON.parse(localData);
+        }
+      });
+      setAllProgress(progMap);
+    }
+
     return () => unsubscribe();
-  }, []);
+  }, [lessons.length, auth.currentUser?.uid]);
 
   const handleSelectLesson = async (lesson: any) => {
     setSelectedLesson(lesson);
@@ -69,9 +95,29 @@ export const StudentDashboard: React.FC = () => {
         lessonId: selectedLesson.id,
         ...newProgress
       });
+      
+      // Update local allProgress for immediate UI feedback
+      setAllProgress(prev => ({
+        ...prev,
+        [selectedLesson.id]: {
+          userId: auth.currentUser?.uid,
+          lessonId: selectedLesson.id,
+          lessonTitle: selectedLesson.title,
+          ...newProgress
+        }
+      }));
     } else {
       const progressId = `progress_${selectedLesson.id}`;
       localStorage.setItem(progressId, JSON.stringify(newProgress));
+      
+      // Update local allProgress for anonymous users too
+      setAllProgress(prev => ({
+        ...prev,
+        [selectedLesson.id]: {
+          ...newProgress,
+          lessonTitle: selectedLesson.title
+        }
+      }));
     }
     
     setProgress(newProgress);
@@ -115,6 +161,7 @@ export const StudentDashboard: React.FC = () => {
                   url={selectedLesson.audioUrl} 
                   initialPosition={progress?.lastPlaybackPosition || 0}
                   onPositionUpdate={(pos) => updateProgress({ lastPlaybackPosition: pos })}
+                  onComplete={() => updateProgress({ completed: true })}
                 />
               </section>
             )}
@@ -157,7 +204,12 @@ export const StudentDashboard: React.FC = () => {
         </button>
         <Quiz 
           questions={quiz.questions} 
-          onComplete={(score) => updateProgress({ completed: true, score })}
+          onComplete={(score) => updateProgress({ 
+            completed: true, 
+            score, 
+            totalQuestions: quiz.questions.length,
+            lessonTitle: selectedLesson.title
+          })}
         />
       </div>
     );
@@ -193,9 +245,18 @@ export const StudentDashboard: React.FC = () => {
                       <div>
                         <h3 className="text-2xl font-bold">{lesson.title}</h3>
                         <div className="flex items-center gap-2">
-                          <p className="text-lg text-slate-500">{t.getStarted}</p>
-                          <span className="text-slate-300">•</span>
-                          <p className="text-lg font-bold text-blue-600">{lesson.level || 'Basic'}</p>
+                          {allProgress[lesson.id]?.completed ? (
+                            <div className="flex items-center gap-2 text-green-600 font-bold">
+                              <CheckCircle size={20} />
+                              <span>{t.score}: {allProgress[lesson.id].score} / {allProgress[lesson.id].totalQuestions || '?'}</span>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-lg text-slate-500">{t.getStarted}</p>
+                              <span className="text-slate-300">•</span>
+                              <p className="text-lg font-bold text-blue-600">{lesson.level || 'Basic'}</p>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>

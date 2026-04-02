@@ -55,8 +55,10 @@
       "properties": {
         "userId": { "type": "string" },
         "lessonId": { "type": "string" },
+        "lessonTitle": { "type": "string" },
         "completed": { "type": "boolean" },
         "score": { "type": "integer" },
+        "totalQuestions": { "type": "integer" },
         "lastPlaybackPosition": { "type": "number" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },

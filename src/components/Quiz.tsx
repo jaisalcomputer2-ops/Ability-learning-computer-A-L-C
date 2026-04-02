@@ -22,6 +22,23 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete }) => {
   const [showResult, setShowResult] = useState(false);
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
   const { announce, t } = useA11y();
+  const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (showResult || feedback) return;
+      
+      const key = e.key;
+      const index = parseInt(key) - 1;
+      
+      if (index >= 0 && index < questions[currentQuestion].options.length) {
+        handleAnswer(index);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentQuestion, feedback, showResult, questions]);
 
   const correctSound = new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3'] });
   const wrongSound = new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3'] });
@@ -66,7 +83,13 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete }) => {
       <div className="text-center p-8 bg-white rounded-2xl shadow-xl border-4 border-blue-600 dark:bg-slate-900">
         <Trophy size={80} className="mx-auto text-yellow-500 mb-6" />
         <h2 className="text-4xl font-bold mb-4">{t.quizCompleted}</h2>
-        <p className="text-2xl mb-8">{t.score}: <span className="font-mono font-bold text-blue-600">{score} / {questions.length}</span></p>
+        <p className="text-2xl mb-4">{t.score}: <span className="font-mono font-bold text-blue-600">{score} / {questions.length}</span></p>
+        <p className={cn(
+          "text-xl font-bold mb-8 p-4 rounded-xl",
+          score < 3 ? "bg-red-50 text-red-700 dark:bg-red-900/20" : "bg-green-50 text-green-700 dark:bg-green-900/20"
+        )}>
+          {score < 3 ? t.practiceNeeded : t.goodJob}
+        </p>
         <button
           onClick={resetQuiz}
           className="flex items-center gap-3 mx-auto px-8 py-4 bg-blue-600 text-white rounded-xl text-xl font-bold hover:bg-blue-700 focus:ring-4 focus:ring-blue-400 outline-none"
@@ -81,10 +104,13 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete }) => {
   const q = questions[currentQuestion];
 
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-white rounded-2xl shadow-xl border-2 border-slate-200 dark:bg-slate-900 dark:border-slate-700">
+    <div 
+      className="max-w-2xl mx-auto p-6 bg-white rounded-2xl shadow-xl border-2 border-slate-200 dark:bg-slate-900 dark:border-slate-700"
+      tabIndex={0}
+    >
       <div className="mb-8">
         <span className="text-lg font-bold text-slate-500 uppercase tracking-widest">{t.question} {currentQuestion + 1} / {questions.length}</span>
-        <h2 className="text-3xl font-bold mt-2 leading-tight">{q.question}</h2>
+        <p id="question" className="text-3xl font-bold mt-2 leading-tight">{q.question}</p>
       </div>
 
       <div className="grid gap-4">
@@ -103,7 +129,7 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete }) => {
             aria-label={`${t.question} ${index + 1}: ${option}`}
           >
             <div className="flex justify-between items-center">
-              <span>{option}</span>
+              <span>{index + 1}. {option}</span>
               {feedback === 'correct' && index === q.correctAnswer && <CheckCircle className="text-green-600" />}
               {feedback === 'wrong' && index === q.correctAnswer && <CheckCircle className="text-green-600" />}
             </div>
