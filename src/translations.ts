@@ -32,7 +32,16 @@ export const translations = {
     darkMode: "Toggle dark mode",
     language: "Change Language",
     loading: "Loading ACL...",
-    footer: "© 2026 Ability Computer Learning. Designed for Accessibility."
+    footer: "© 2026 Ability Computer Learning. Designed for Accessibility.",
+    adminLogin: "Admin Login",
+    email: "Email",
+    password: "Password",
+    cancel: "Cancel",
+    invalidAdmin: "Invalid Admin Credentials",
+    loginSuccess: "Logged in successfully",
+    editLesson: "Edit Lesson",
+    updateLesson: "Update Lesson",
+    edit: "Edit"
   },
   ml: {
     appName: "എബിലിറ്റി കമ്പ്യൂട്ടർ ലേണിംഗ്",
@@ -67,7 +76,16 @@ export const translations = {
     darkMode: "ഡാർക്ക് മോഡ് മാറ്റുക",
     language: "ഭാഷ മാറ്റുക",
     loading: "ACL ലോഡ് ചെയ്യുന്നു...",
-    footer: "© 2026 എബിലിറ്റി കമ്പ്യൂട്ടർ ലേണിംഗ്. ആക്സസിബിലിറ്റിക്കായി രൂപകൽപ്പന ചെയ്തത്."
+    footer: "© 2026 എബിലിറ്റി കമ്പ്യൂട്ടർ ലേണിംഗ്. ആക്സസിബിലിറ്റിക്കായി രൂപകൽപ്പന ചെയ്തത്.",
+    adminLogin: "അഡ്മിൻ ലോഗിൻ",
+    email: "ഇമെയിൽ",
+    password: "പാസ്‌വേഡ്",
+    cancel: "റദ്ദാക്കുക",
+    invalidAdmin: "അസാധുവായ അഡ്മിൻ ക്രെഡൻഷ്യലുകൾ",
+    loginSuccess: "വിജയകരമായി ലോഗിൻ ചെയ്തു",
+    editLesson: "പാഠം തിരുത്തുക",
+    updateLesson: "പാഠം പുതുക്കുക",
+    edit: "തിരുത്തുക"
   }
 };
 

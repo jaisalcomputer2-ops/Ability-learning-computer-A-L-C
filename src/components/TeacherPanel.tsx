@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../firebase';
-import { collection, addDoc, query, getDocs, deleteDoc, doc, Timestamp } from 'firebase/firestore';
-import { Plus, Trash2, BookOpen, Music, HelpCircle, Save, AlertTriangle } from 'lucide-react';
+import { collection, addDoc, query, onSnapshot, deleteDoc, doc, updateDoc, Timestamp, orderBy } from 'firebase/firestore';
+import { Plus, Trash2, BookOpen, Music, HelpCircle, Save, AlertTriangle, Edit3, X } from 'lucide-react';
 import { useA11y } from './A11yProvider';
 import toast from 'react-hot-toast';
 
@@ -12,20 +12,23 @@ export const TeacherPanel: React.FC = () => {
   const [textContent, setTextContent] = useState('');
   const [audioUrl, setAudioUrl] = useState('');
   const [loading, setLoading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const { announce, t } = useA11y();
 
   useEffect(() => {
-    fetchLessons();
+    const q = query(collection(db, 'lessons'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setLessons(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      console.error("Firestore Error:", error);
+      toast.error("Failed to load lessons");
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const fetchLessons = async () => {
-    const q = query(collection(db, 'lessons'));
-    const snapshot = await getDocs(q);
-    setLessons(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-  };
-
-  const handleAddLesson = async (e: React.FormEvent) => {
+  const handleSaveLesson = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !category || !textContent) {
       toast.error('Please fill in all required fields');
@@ -40,35 +43,61 @@ export const TeacherPanel: React.FC = () => {
         textContent,
         audioUrl,
         teacherId: auth.currentUser?.uid,
-        createdAt: Timestamp.now()
+        updatedAt: Timestamp.now()
       };
 
-      const docRef = await addDoc(collection(db, 'lessons'), lessonData);
-      
-      await addDoc(collection(db, 'quizzes'), {
-        lessonId: docRef.id,
-        questions: [
-          {
-            question: `What is the main topic of ${title}?`,
-            options: [category, 'Something else', 'None of the above'],
-            correctAnswer: 0
-          }
-        ]
-      });
+      if (editingId) {
+        await updateDoc(doc(db, 'lessons', editingId), lessonData);
+        toast.success('Lesson updated!');
+        setEditingId(null);
+      } else {
+        const docRef = await addDoc(collection(db, 'lessons'), {
+          ...lessonData,
+          createdAt: Timestamp.now()
+        });
+        
+        await addDoc(collection(db, 'quizzes'), {
+          lessonId: docRef.id,
+          questions: [
+            {
+              question: `What is the main topic of ${title}?`,
+              options: [category, 'Something else', 'None of the above'],
+              correctAnswer: 0
+            }
+          ]
+        });
+        toast.success('Lesson and sample quiz added!');
+      }
 
-      toast.success('Lesson and sample quiz added!');
-      announce(t.saveLesson);
       setTitle('');
       setCategory('');
       setTextContent('');
       setAudioUrl('');
-      fetchLessons();
+      announce(t.saveLesson);
     } catch (error) {
       console.error(error);
-      toast.error('Failed to add lesson');
+      toast.error('Failed to save lesson');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEdit = (lesson: any) => {
+    setEditingId(lesson.id);
+    setTitle(lesson.title);
+    setCategory(lesson.category);
+    setTextContent(lesson.textContent);
+    setAudioUrl(lesson.audioUrl || '');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    announce(`${t.editLesson}: ${lesson.title}`);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setTitle('');
+    setCategory('');
+    setTextContent('');
+    setAudioUrl('');
   };
 
   const handleDelete = async (id: string) => {
@@ -76,7 +105,6 @@ export const TeacherPanel: React.FC = () => {
       await deleteDoc(doc(db, 'lessons', id));
       toast.success('Lesson deleted');
       setConfirmDelete(null);
-      fetchLessons();
     } catch (error) {
       toast.error('Failed to delete lesson');
     }
@@ -90,10 +118,22 @@ export const TeacherPanel: React.FC = () => {
       </h1>
 
       <section className="bg-white p-8 rounded-2xl shadow-xl border-2 border-slate-200 mb-12 dark:bg-slate-900 dark:border-slate-700">
-        <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
-          <Plus className="text-blue-600" /> {t.addLesson}
-        </h2>
-        <form onSubmit={handleAddLesson} className="grid gap-6">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold flex items-center gap-3">
+            {editingId ? <Edit3 className="text-blue-600" /> : <Plus className="text-blue-600" />}
+            {editingId ? t.editLesson : t.addLesson}
+          </h2>
+          {editingId && (
+            <button 
+              onClick={cancelEdit}
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg outline-none focus:ring-4 focus:ring-blue-500"
+              aria-label={t.cancel}
+            >
+              <X size={24} />
+            </button>
+          )}
+        </div>
+        <form onSubmit={handleSaveLesson} className="grid gap-6">
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <label className="block text-lg font-bold mb-2" htmlFor="title">{t.lessonTitle}</label>
@@ -102,8 +142,8 @@ export const TeacherPanel: React.FC = () => {
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full p-4 rounded-xl border-2 border-slate-200 focus:ring-4 focus:ring-blue-500 outline-none dark:bg-slate-800 dark:border-slate-700"
-                placeholder="e.g., Introduction to MS Word"
+                className="w-full p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xl outline-none focus:ring-4 focus:ring-blue-500"
+                required
               />
             </div>
             <div>
@@ -112,7 +152,8 @@ export const TeacherPanel: React.FC = () => {
                 id="category"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full p-4 rounded-xl border-2 border-slate-200 focus:ring-4 focus:ring-blue-500 outline-none dark:bg-slate-800 dark:border-slate-700"
+                className="w-full p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xl outline-none focus:ring-4 focus:ring-blue-500"
+                required
               >
                 <option value="">Select Category</option>
                 <option value="Desktop">Desktop</option>
@@ -122,88 +163,94 @@ export const TeacherPanel: React.FC = () => {
               </select>
             </div>
           </div>
-
           <div>
-            <label className="block text-lg font-bold mb-2" htmlFor="content">{t.textContent}</label>
+            <label className="block text-lg font-bold mb-2" htmlFor="textContent">{t.textContent}</label>
             <textarea
-              id="content"
+              id="textContent"
               value={textContent}
               onChange={(e) => setTextContent(e.target.value)}
-              rows={6}
-              className="w-full p-4 rounded-xl border-2 border-slate-200 focus:ring-4 focus:ring-blue-500 outline-none dark:bg-slate-800 dark:border-slate-700"
-              placeholder="Enter the lesson notes here..."
+              className="w-full p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xl outline-none focus:ring-4 focus:ring-blue-500 min-h-[200px]"
+              required
             />
           </div>
-
           <div>
-            <label className="block text-lg font-bold mb-2" htmlFor="audio">{t.audioUrl}</label>
-            <div className="flex gap-4">
-              <input
-                id="audio"
-                type="url"
-                value={audioUrl}
-                onChange={(e) => setAudioUrl(e.target.value)}
-                className="flex-1 p-4 rounded-xl border-2 border-slate-200 focus:ring-4 focus:ring-blue-500 outline-none dark:bg-slate-800 dark:border-slate-700"
-                placeholder="https://example.com/audio.mp3"
-              />
-              <Music className="text-slate-400 self-center" />
-            </div>
+            <label className="block text-lg font-bold mb-2" htmlFor="audioUrl">{t.audioUrl}</label>
+            <input
+              id="audioUrl"
+              type="url"
+              value={audioUrl}
+              onChange={(e) => setAudioUrl(e.target.value)}
+              className="w-full p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xl outline-none focus:ring-4 focus:ring-blue-500"
+              placeholder="https://example.com/audio.mp3"
+            />
           </div>
-
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-5 bg-blue-600 text-white rounded-xl text-2xl font-bold hover:bg-blue-700 focus:ring-4 focus:ring-blue-400 outline-none disabled:opacity-50 flex items-center justify-center gap-3"
+            className="flex items-center justify-center gap-3 py-5 bg-blue-600 text-white rounded-xl text-2xl font-bold hover:bg-blue-700 focus:ring-4 focus:ring-blue-400 outline-none disabled:opacity-50"
           >
-            <Save /> {loading ? 'Saving...' : t.saveLesson}
+            <Save /> {editingId ? t.updateLesson : t.saveLesson}
           </button>
         </form>
       </section>
 
       <section>
-        <h2 className="text-2xl font-bold mb-6">{t.existingLessons}</h2>
+        <h2 className="text-3xl font-bold mb-6">{t.existingLessons}</h2>
         <div className="grid gap-4">
-          {lessons.map(lesson => (
-            <div key={lesson.id} className="bg-white p-6 rounded-xl shadow border-2 border-slate-100 flex flex-col gap-4 dark:bg-slate-900 dark:border-slate-800">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="text-xl font-bold">{lesson.title}</h3>
-                  <p className="text-slate-500">{lesson.category}</p>
-                </div>
+          {lessons.map((lesson) => (
+            <div key={lesson.id} className="bg-white p-6 rounded-2xl border-2 border-slate-200 flex justify-between items-center dark:bg-slate-900 dark:border-slate-800">
+              <div>
+                <h3 className="text-2xl font-bold">{lesson.title}</h3>
+                <p className="text-slate-500 font-bold">{lesson.category}</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleEdit(lesson)}
+                  className="p-4 text-blue-600 hover:bg-blue-50 rounded-xl focus:ring-4 focus:ring-blue-500 outline-none dark:hover:bg-blue-900/20"
+                  aria-label={`${t.edit} ${lesson.title}`}
+                >
+                  <Edit3 size={28} />
+                </button>
                 <button
                   onClick={() => setConfirmDelete(lesson.id)}
-                  className="p-3 text-red-600 hover:bg-red-50 rounded-lg focus:ring-4 focus:ring-red-400 outline-none"
+                  className="p-4 text-red-600 hover:bg-red-50 rounded-xl focus:ring-4 focus:ring-red-500 outline-none dark:hover:bg-red-900/20"
                   aria-label={`${t.delete} ${lesson.title}`}
                 >
-                  <Trash2 />
+                  <Trash2 size={28} />
                 </button>
               </div>
-
-              {confirmDelete === lesson.id && (
-                <div className="bg-red-50 p-4 rounded-lg flex items-center justify-between border-2 border-red-200 dark:bg-red-900/20 dark:border-red-800">
-                  <div className="flex items-center gap-3 text-red-800 dark:text-red-200 font-bold">
-                    <AlertTriangle /> Are you sure?
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => setConfirmDelete(null)}
-                      className="px-4 py-2 bg-white border-2 border-slate-200 rounded-lg font-bold hover:bg-slate-50 focus:ring-4 focus:ring-slate-300 outline-none dark:bg-slate-800 dark:border-slate-700"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => handleDelete(lesson.id)}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 focus:ring-4 focus:ring-red-400 outline-none"
-                    >
-                      Confirm Delete
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           ))}
         </div>
       </section>
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border-2 border-slate-200 dark:border-slate-800 p-8 text-center">
+            <div className="w-20 h-20 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <AlertTriangle size={48} className="text-red-600" />
+            </div>
+            <h2 className="text-3xl font-bold mb-4">Are you sure?</h2>
+            <p className="text-xl text-slate-600 dark:text-slate-400 mb-8">
+              This action cannot be undone. The lesson and its progress will be lost.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="py-4 bg-slate-100 dark:bg-slate-800 rounded-xl text-xl font-bold outline-none focus:ring-4 focus:ring-slate-500"
+              >
+                {t.cancel}
+              </button>
+              <button
+                onClick={() => handleDelete(confirmDelete)}
+                className="py-4 bg-red-600 text-white rounded-xl text-xl font-bold outline-none focus:ring-4 focus:ring-red-500"
+              >
+                {t.delete}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

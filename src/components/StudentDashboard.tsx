@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../firebase';
-import { collection, query, getDocs, where, doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, where, doc, getDoc, setDoc, Timestamp, orderBy } from 'firebase/firestore';
 import { BookOpen, PlayCircle, CheckCircle, ChevronRight, ArrowLeft, Headphones, FileText, BrainCircuit } from 'lucide-react';
 import { AudioPlayer } from './AudioPlayer';
 import { Quiz } from './Quiz';
@@ -16,47 +16,65 @@ export const StudentDashboard: React.FC = () => {
   const { announce, t } = useA11y();
 
   useEffect(() => {
-    fetchLessons();
-  }, []);
+    const q = query(collection(db, 'lessons'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setLessons(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      console.error("Firestore Error:", error);
+      toast.error("Failed to load lessons");
+    });
 
-  const fetchLessons = async () => {
-    const q = query(collection(db, 'lessons'));
-    const snapshot = await getDocs(q);
-    setLessons(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-  };
+    return () => unsubscribe();
+  }, []);
 
   const handleSelectLesson = async (lesson: any) => {
     setSelectedLesson(lesson);
     setView('lesson');
     announce(`${lesson.title}. ${lesson.category}`);
     
-    const progressId = `${auth.currentUser?.uid}_${lesson.id}`;
-    const progressDoc = await getDoc(doc(db, 'progress', progressId));
-    if (progressDoc.exists()) {
-      setProgress(progressDoc.data());
+    const progressId = `progress_${lesson.id}`;
+    if (auth.currentUser) {
+      const fbProgressId = `${auth.currentUser.uid}_${lesson.id}`;
+      const progressDoc = await getDoc(doc(db, 'progress', fbProgressId));
+      if (progressDoc.exists()) {
+        setProgress(progressDoc.data());
+      } else {
+        setProgress(null);
+      }
     } else {
-      setProgress(null);
+      // Use localStorage for anonymous users
+      const localData = localStorage.getItem(progressId);
+      setProgress(localData ? JSON.parse(localData) : null);
     }
 
     const quizQuery = query(collection(db, 'quizzes'), where('lessonId', '==', lesson.id));
-    const quizSnapshot = await getDocs(quizQuery);
-    if (!quizSnapshot.empty) {
-      setQuiz({ id: quizSnapshot.docs[0].id, ...quizSnapshot.docs[0].data() });
-    } else {
-      setQuiz(null);
-    }
+    const unsubscribeQuiz = onSnapshot(quizQuery, (snapshot) => {
+      if (!snapshot.empty) {
+        setQuiz({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
+      } else {
+        setQuiz(null);
+      }
+    });
+
+    return () => unsubscribeQuiz();
   };
 
   const updateProgress = async (data: any) => {
-    const progressId = `${auth.currentUser?.uid}_${selectedLesson.id}`;
-    await setDoc(doc(db, 'progress', progressId), {
-      userId: auth.currentUser?.uid,
-      lessonId: selectedLesson.id,
-      updatedAt: Timestamp.now(),
-      ...progress,
-      ...data
-    });
-    setProgress({ ...progress, ...data });
+    const newProgress = { ...progress, ...data, updatedAt: Timestamp.now() };
+    
+    if (auth.currentUser) {
+      const fbProgressId = `${auth.currentUser.uid}_${selectedLesson.id}`;
+      await setDoc(doc(db, 'progress', fbProgressId), {
+        userId: auth.currentUser.uid,
+        lessonId: selectedLesson.id,
+        ...newProgress
+      });
+    } else {
+      const progressId = `progress_${selectedLesson.id}`;
+      localStorage.setItem(progressId, JSON.stringify(newProgress));
+    }
+    
+    setProgress(newProgress);
   };
 
   if (view === 'lesson' && selectedLesson) {

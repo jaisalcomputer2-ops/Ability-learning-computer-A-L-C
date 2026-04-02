@@ -1,42 +1,135 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { auth, db } from './firebase';
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
 import { Toaster } from 'react-hot-toast';
-import { LogIn, LogOut, User, Settings, Accessibility, Sun, Moon, Languages } from 'lucide-react';
+import { LogIn, LogOut, User, Settings, Accessibility, Sun, Moon, Languages, ShieldCheck, X } from 'lucide-react';
 import { A11yProvider, useA11y } from './components/A11yProvider';
 import { StudentDashboard } from './components/StudentDashboard';
 import { TeacherPanel } from './components/TeacherPanel';
 import toast from 'react-hot-toast';
+
+const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { t, announce } = useA11y();
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      onClose();
+      toast.success(t.loginSuccess || 'Logged in successfully');
+    } catch (error: any) {
+      let errorMessage = t.invalidAdmin;
+      if (error.code === 'auth/user-not-found') errorMessage = 'User not found';
+      else if (error.code === 'auth/wrong-password') errorMessage = 'Incorrect password';
+      else if (error.code === 'auth/invalid-email') errorMessage = 'Invalid email address';
+      else if (error.message) errorMessage = error.message;
+      
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border-2 border-slate-200 dark:border-slate-800 p-8">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-3xl font-bold flex items-center gap-3">
+            <ShieldCheck className="text-blue-600" /> {t.adminLogin}
+          </h2>
+          <button 
+            onClick={onClose}
+            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg outline-none focus:ring-4 focus:ring-blue-500"
+            aria-label={t.cancel}
+          >
+            <X size={32} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="grid gap-6">
+          <div>
+            <label className="block text-xl font-bold mb-2" htmlFor="admin-email">{t.email}</label>
+            <input
+              id="admin-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xl outline-none focus:ring-4 focus:ring-blue-500"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xl font-bold mb-2" htmlFor="admin-password">{t.password}</label>
+            <input
+              id="admin-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xl outline-none focus:ring-4 focus:ring-blue-500"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-5 bg-blue-600 text-white rounded-xl text-2xl font-bold hover:bg-blue-700 focus:ring-4 focus:ring-blue-400 outline-none disabled:opacity-50"
+          >
+            {loading ? '...' : t.login}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
 
 const AppContent: React.FC = () => {
   const [user, setUser] = useState<any>(null);
   const [role, setRole] = useState<'student' | 'teacher' | null>(null);
   const [loading, setLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const { toggleHighContrast, language, setLanguage, t, announce } = useA11y();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        const userDocRef = doc(db, 'users', firebaseUser.uid);
+        const userDoc = await getDoc(userDocRef);
+        
         if (userDoc.exists()) {
           setRole(userDoc.data().role);
         } else {
-          const defaultRole = firebaseUser.email === "jaisalcomputer2@gmail.com" ? 'teacher' : 'student';
-          const userData = {
-            uid: firebaseUser.uid,
-            name: firebaseUser.displayName || 'User',
-            email: firebaseUser.email || '',
-            role: defaultRole,
-            createdAt: Timestamp.now()
-          };
-          await setDoc(doc(db, 'users', firebaseUser.uid), userData);
-          setRole(defaultRole);
+          try {
+            // If the user logs in but isn't in the DB, create a profile
+            // We can still use the email check to bootstrap the first admin/teacher
+            const isPrimaryAdmin = firebaseUser.email === "jaisalcomputer2@gmail.com";
+            const newRole = isPrimaryAdmin ? 'teacher' : 'student';
+            
+            await setDoc(userDocRef, {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0],
+              role: newRole,
+              createdAt: Timestamp.now()
+            });
+            
+            setRole(newRole);
+          } catch (error) {
+            console.error("Error creating user profile:", error);
+            // Fallback role if profile creation fails
+            setRole(firebaseUser.email === "jaisalcomputer2@gmail.com" ? 'teacher' : 'student');
+          }
         }
-        announce(`${t.login} ${firebaseUser.displayName}`);
+        announce(`${t.login} ${firebaseUser.displayName || firebaseUser.email}`);
       } else {
         setUser(null);
         setRole(null);
@@ -46,15 +139,6 @@ const AppContent: React.FC = () => {
 
     return () => unsubscribe();
   }, [language]);
-
-  const handleLogin = async () => {
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-    } catch (error) {
-      toast.error('Login failed');
-    }
-  };
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -119,7 +203,7 @@ const AppContent: React.FC = () => {
 
               {user ? (
                 <div className="flex items-center gap-4">
-                  <span className="hidden md:block font-bold text-lg">{user.displayName}</span>
+                  <span className="hidden md:block font-bold text-lg">{user.displayName || user.email}</span>
                   <button
                     onClick={handleLogout}
                     className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 focus:ring-4 focus:ring-red-400 outline-none dark:bg-red-900/20 dark:text-red-400"
@@ -130,11 +214,11 @@ const AppContent: React.FC = () => {
                 </div>
               ) : (
                 <button
-                  onClick={handleLogin}
-                  className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 focus:ring-4 focus:ring-blue-400 outline-none"
-                  aria-label={t.login}
+                  onClick={() => setIsAdminModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 focus:ring-4 focus:ring-slate-400 outline-none dark:bg-slate-800 dark:text-slate-400"
+                  aria-label={t.adminLogin}
                 >
-                  <LogIn size={20} /> {t.login}
+                  <ShieldCheck size={20} /> <span className="hidden sm:inline">{t.adminLogin}</span>
                 </button>
               )}
             </div>
@@ -142,29 +226,14 @@ const AppContent: React.FC = () => {
         </header>
 
         <main className="py-8">
-          {!user ? (
-            <div className="max-w-2xl mx-auto text-center px-6 py-20">
-              <h1 className="text-6xl font-black mb-8 leading-tight">{t.tagline}</h1>
-              <p className="text-2xl text-slate-600 mb-12 dark:text-slate-400">
-                {t.description}
-              </p>
-              <button
-                onClick={handleLogin}
-                className="px-12 py-6 bg-blue-600 text-white rounded-2xl text-3xl font-black hover:bg-blue-700 focus:ring-4 focus:ring-blue-400 outline-none shadow-2xl shadow-blue-500/20"
-              >
-                {t.getStarted}
-              </button>
-            </div>
-          ) : (
-            <>
-              {role === 'teacher' ? <TeacherPanel /> : <StudentDashboard />}
-            </>
-          )}
+          {role === 'teacher' ? <TeacherPanel /> : <StudentDashboard />}
         </main>
 
         <footer className="p-8 text-center text-slate-500 border-t-2 border-slate-100 dark:border-slate-800">
           <p className="text-lg">{t.footer}</p>
         </footer>
+
+        <AdminLoginModal isOpen={isAdminModalOpen} onClose={() => setIsAdminModalOpen(false)} />
       </div>
     </div>
   );
