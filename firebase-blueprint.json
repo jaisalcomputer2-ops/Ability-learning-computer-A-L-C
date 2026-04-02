@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the application, either a student or a teacher.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique ID of the user." },
+        "name": { "type": "string", "description": "The full name of the user." },
+        "role": { "type": "string", "enum": ["student", "teacher"], "description": "The role of the user." },
+        "email": { "type": "string", "format": "email", "description": "The email address of the user." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the user was created." }
+      },
+      "required": ["uid", "name", "role", "email"]
+    },
+    "Lesson": {
+      "title": "Lesson",
+      "description": "A learning unit containing text and optional audio.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string", "description": "e.g., Desktop, MS Word, Internet" },
+        "textContent": { "type": "string" },
+        "audioUrl": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "category", "textContent", "teacherId"]
+    },
+    "Quiz": {
+      "title": "Quiz",
+      "description": "A set of questions associated with a lesson.",
+      "type": "object",
+      "properties": {
+        "lessonId": { "type": "string" },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "question": { "type": "string" },
+              "options": { "type": "array", "items": { "type": "string" } },
+              "correctAnswer": { "type": "integer", "description": "Index of the correct option." }
+            }
+          }
+        }
+      },
+      "required": ["lessonId", "questions"]
+    },
+    "Progress": {
+      "title": "Progress",
+      "description": "Tracking a student's progress through a lesson.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "lessonId": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "score": { "type": "integer" },
+        "lastPlaybackPosition": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "lessonId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "User profiles." },
+    "/lessons/{lessonId}": { "schema": "Lesson", "description": "Lesson content." },
+    "/quizzes/{quizId}": { "schema": "Quiz", "description": "Quizzes for lessons." },
+    "/progress/{progressId}": { "schema": "Progress", "description": "Student progress tracking." }
+  }
+}

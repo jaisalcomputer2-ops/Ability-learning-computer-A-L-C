@@ -1,0 +1,5 @@
+{
+  "name": "Ability Computer Learning",
+  "description": "An accessible learning platform for visually impaired students to master computer skills through audio lessons, text notes, and interactive quizzes.",
+  "requestFramePermissions": ["microphone"]
+}

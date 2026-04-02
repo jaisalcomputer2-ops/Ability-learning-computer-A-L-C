@@ -1,0 +1,20 @@
+{
+  "name": "Ability Computer Learning",
+  "short_name": "ACL",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0d6efd",
+  "icons": [
+    {
+      "src": "https://picsum.photos/seed/acl/192/192",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://picsum.photos/seed/acl/512/512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
