@@ -105,31 +105,34 @@ const AppContent: React.FC = () => {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         const userDoc = await getDoc(userDocRef);
         
+        const admins = ["jaisalcomputer2@gmail.com", "dqjaisal@gmail.com"];
+        const isPrimaryAdmin = firebaseUser.email && admins.includes(firebaseUser.email.toLowerCase());
+        const targetRole = isPrimaryAdmin ? 'teacher' : 'student';
+
         if (userDoc.exists()) {
-          setRole(userDoc.data().role);
+          const currentRole = userDoc.data().role;
+          if (currentRole !== targetRole && isPrimaryAdmin) {
+            // Upgrade to teacher if they are in the admin list but marked as student
+            await setDoc(userDocRef, { role: targetRole }, { merge: true });
+            setRole(targetRole);
+          } else {
+            setRole(currentRole);
+          }
         } else {
           try {
             // If the user logs in but isn't in the DB, create a profile
-            // We can still use the email check to bootstrap the first admin/teacher
-            const admins = ["jaisalcomputer2@gmail.com", "dqjaisal@gmail.com"];
-            const isPrimaryAdmin = firebaseUser.email && admins.includes(firebaseUser.email.toLowerCase());
-            const newRole = isPrimaryAdmin ? 'teacher' : 'student';
-            
             await setDoc(userDocRef, {
               uid: firebaseUser.uid,
               email: firebaseUser.email,
               name: firebaseUser.displayName || firebaseUser.email?.split('@')[0],
-              role: newRole,
+              role: targetRole,
               createdAt: Timestamp.now()
             });
             
-            setRole(newRole);
+            setRole(targetRole);
           } catch (error) {
             console.error("Error creating user profile:", error);
-            // Fallback role if profile creation fails
-            const admins = ["jaisalcomputer2@gmail.com", "dqjaisal@gmail.com"];
-            const isPrimaryAdmin = firebaseUser.email && admins.includes(firebaseUser.email.toLowerCase());
-            setRole(isPrimaryAdmin ? 'teacher' : 'student');
+            setRole(targetRole);
           }
         }
         announce(`${t.login} ${firebaseUser.displayName || firebaseUser.email}`);

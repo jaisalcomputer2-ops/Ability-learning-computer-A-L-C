@@ -91,7 +91,11 @@ export const StudentDashboard: React.FC = () => {
         <div className="bg-white p-8 rounded-2xl shadow-xl border-2 border-slate-200 dark:bg-slate-900 dark:border-slate-700">
           <div className="flex justify-between items-start mb-8">
             <div>
-              <span className="text-lg font-bold text-slate-500 uppercase tracking-widest">{selectedLesson.category}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-lg font-bold text-slate-500 uppercase tracking-widest">{selectedLesson.category}</span>
+                <span className="text-slate-300">•</span>
+                <span className="text-lg font-bold text-blue-600 uppercase tracking-widest">{selectedLesson.level || 'Basic'}</span>
+              </div>
               <h1 className="text-4xl font-bold mt-2">{selectedLesson.title}</h1>
             </div>
             {progress?.completed && (
@@ -165,7 +169,7 @@ export const StudentDashboard: React.FC = () => {
       <p className="text-2xl text-slate-600 mb-12 dark:text-slate-400">{t.description.split('.')[0]}.</p>
 
       <div className="grid gap-8">
-        {['Desktop', 'MS Word', 'Internet', 'Hardware'].map(cat => {
+        {Array.from(new Set(lessons.map(l => l.category))).sort().map(cat => {
           const catLessons = lessons.filter(l => l.category === cat);
           if (catLessons.length === 0) return null;
 
@@ -188,7 +192,11 @@ export const StudentDashboard: React.FC = () => {
                       </div>
                       <div>
                         <h3 className="text-2xl font-bold">{lesson.title}</h3>
-                        <p className="text-lg text-slate-500">{t.getStarted}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-lg text-slate-500">{t.getStarted}</p>
+                          <span className="text-slate-300">•</span>
+                          <p className="text-lg font-bold text-blue-600">{lesson.level || 'Basic'}</p>
+                        </div>
                       </div>
                     </div>
                     <ChevronRight size={32} className="text-slate-300" />

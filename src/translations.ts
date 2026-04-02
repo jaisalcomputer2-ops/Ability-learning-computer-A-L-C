@@ -41,7 +41,10 @@ export const translations = {
     loginSuccess: "Logged in successfully",
     editLesson: "Edit Lesson",
     updateLesson: "Update Lesson",
-    edit: "Edit"
+    edit: "Edit",
+    level: "Level",
+    basic: "Basic",
+    advanced: "Advanced"
   },
   ml: {
     appName: "എബിലിറ്റി കമ്പ്യൂട്ടർ ലേണിംഗ്",
@@ -85,7 +88,10 @@ export const translations = {
     loginSuccess: "വിജയകരമായി ലോഗിൻ ചെയ്തു",
     editLesson: "പാഠം തിരുത്തുക",
     updateLesson: "പാഠം പുതുക്കുക",
-    edit: "തിരുത്തുക"
+    edit: "തിരുത്തുക",
+    level: "നില",
+    basic: "അടിസ്ഥാനം",
+    advanced: "ഉന്നതം"
   }
 };
 
