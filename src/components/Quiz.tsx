@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Howl } from 'howler';
 import { CheckCircle, XCircle, RotateCcw, Trophy } from 'lucide-react';
 import { useA11y } from './A11yProvider';
+import { handleKey, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
 
 interface Question {
   question: string;
@@ -24,21 +24,43 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete }) => {
   const { announce, t } = useA11y();
   const [isFocused, setIsFocused] = useState(false);
 
+  const [focusedOptionIndex, setFocusedOptionIndex] = useState<number>(-1);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (showResult || feedback) return;
       
       const key = e.key;
-      const index = parseInt(key) - 1;
-      
-      if (index >= 0 && index < questions[currentQuestion].options.length) {
-        handleAnswer(index);
+      const optionsCount = questions[currentQuestion].options.length;
+
+      if (key === "ArrowDown") {
+        e.preventDefault();
+        setFocusedOptionIndex(prev => (prev + 1) % optionsCount);
+      } else if (key === "ArrowUp") {
+        e.preventDefault();
+        setFocusedOptionIndex(prev => (prev - 1 + optionsCount) % optionsCount);
+      } else {
+        const index = parseInt(key) - 1;
+        if (index >= 0 && index < optionsCount) {
+          handleAnswer(index);
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentQuestion, feedback, showResult, questions]);
+
+  useEffect(() => {
+    if (focusedOptionIndex !== -1) {
+      const buttons = document.querySelectorAll('.quiz-option');
+      (buttons[focusedOptionIndex] as HTMLElement)?.focus();
+    }
+  }, [focusedOptionIndex]);
+
+  useEffect(() => {
+    setFocusedOptionIndex(-1);
+  }, [currentQuestion]);
 
   const correctSound = new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3'] });
   const wrongSound = new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3'] });
@@ -82,7 +104,7 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete }) => {
     return (
       <div className="text-center p-8 bg-white rounded-2xl shadow-xl border-4 border-blue-600 dark:bg-slate-900">
         <Trophy size={80} className="mx-auto text-yellow-500 mb-6" />
-        <h2 className="text-4xl font-bold mb-4">{t.quizCompleted}</h2>
+        <h2 className="text-4xl font-bold mb-4 outline-none focus:ring-4 focus:ring-blue-500 rounded-lg inline-block" tabIndex={0}>{t.quizCompleted}</h2>
         <p className="text-2xl mb-4">{t.score}: <span className="font-mono font-bold text-blue-600">{score} / {questions.length}</span></p>
         <p className={cn(
           "text-xl font-bold mb-8 p-4 rounded-xl",
@@ -92,7 +114,8 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete }) => {
         </p>
         <button
           onClick={resetQuiz}
-          className="flex items-center gap-3 mx-auto px-8 py-4 bg-blue-600 text-white rounded-xl text-xl font-bold hover:bg-blue-700 focus:ring-4 focus:ring-blue-400 outline-none"
+          onKeyDown={handleKey}
+          className="flex items-center gap-3 mx-auto px-8 py-4 bg-blue-600 text-white rounded-xl text-xl font-bold hover:bg-blue-700"
           aria-label={t.retry}
         >
           <RotateCcw /> {t.retry}
@@ -110,7 +133,7 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete }) => {
     >
       <div className="mb-8">
         <span className="text-lg font-bold text-slate-500 uppercase tracking-widest">{t.question} {currentQuestion + 1} / {questions.length}</span>
-        <p id="question" className="text-3xl font-bold mt-2 leading-tight">{q.question}</p>
+        <p id="question" className="text-3xl font-bold mt-2 leading-tight rounded-lg inline-block" tabIndex={0}>{q.question}</p>
       </div>
 
       <div className="grid gap-4">
@@ -118,9 +141,11 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete }) => {
           <button
             key={index}
             onClick={() => handleAnswer(index)}
+            onKeyDown={handleKey}
+            onFocus={() => setFocusedOptionIndex(index)}
             disabled={!!feedback}
             className={cn(
-              "w-full p-6 text-left text-xl font-medium rounded-xl border-2 transition-all outline-none focus:ring-4 focus:ring-blue-500",
+              "quiz-option w-full p-6 text-left text-xl font-medium rounded-xl border-2 transition-all",
               feedback === null && "border-slate-200 hover:border-blue-500 hover:bg-blue-50 dark:border-slate-700 dark:hover:bg-slate-800",
               feedback === 'correct' && index === q.correctAnswer && "bg-green-100 border-green-500 text-green-800 dark:bg-green-900/30",
               feedback === 'wrong' && index === q.correctAnswer && "bg-green-100 border-green-500 text-green-800 dark:bg-green-900/30",

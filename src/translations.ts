@@ -32,6 +32,7 @@ export const translations = {
     darkMode: "Toggle dark mode",
     language: "Change Language",
     loading: "Loading ACL...",
+    welcome: "Welcome. Use Tab key to navigate. Press Enter to select.",
     footer: "© 2026 Ability Computer Learning. Designed for Accessibility.",
     adminLogin: "Admin Login",
     email: "Email",
@@ -54,7 +55,8 @@ export const translations = {
     generateQuiz: "Generate Quiz with AI",
     generating: "Generating...",
     practiceNeeded: "More practice needed on this lesson",
-    goodJob: "Good job! Continue learning"
+    goodJob: "Good job! Continue learning",
+    openLesson: "Open lesson"
   },
   ml: {
     appName: "എബിലിറ്റി കമ്പ്യൂട്ടർ ലേണിംഗ്",
@@ -89,6 +91,7 @@ export const translations = {
     darkMode: "ഡാർക്ക് മോഡ് മാറ്റുക",
     language: "ഭാഷ മാറ്റുക",
     loading: "ACL ലോഡ് ചെയ്യുന്നു...",
+    welcome: "സ്വാഗതം. നാവിഗേറ്റ് ചെയ്യാൻ ടാബ് കീ ഉപയോഗിക്കുക. തിരഞ്ഞെടുക്കാൻ എൻ്റർ അമർത്തുക.",
     footer: "© 2026 എബിലിറ്റി കമ്പ്യൂട്ടർ ലേണിംഗ്. ആക്സസിബിലിറ്റിക്കായി രൂപകൽപ്പന ചെയ്തത്.",
     adminLogin: "അഡ്മിൻ ലോഗിൻ",
     email: "ഇമെയിൽ",
@@ -111,7 +114,8 @@ export const translations = {
     generateQuiz: "AI ഉപയോഗിച്ച് ക്വിസ് നിർമ്മിക്കുക",
     generating: "നിർമ്മിക്കുന്നു...",
     practiceNeeded: "ഈ പാഠഭാഗം കൂടുതൽ പരിശീലിക്കേണ്ടതുണ്ട്",
-    goodJob: "നന്നായിരിക്കുന്നു! പഠനം തുടരുക"
+    goodJob: "നന്നായിരിക്കുന്നു! പഠനം തുടരുക",
+    openLesson: "പാഠം തുറക്കുക"
   }
 };
 

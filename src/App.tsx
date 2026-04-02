@@ -6,6 +6,7 @@ import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
 import { Toaster } from 'react-hot-toast';
 import { LogIn, LogOut, User, Settings, Accessibility, Sun, Moon, Languages, ShieldCheck, X } from 'lucide-react';
 import { A11yProvider, useA11y } from './components/A11yProvider';
+import { handleKey } from './lib/utils';
 import { StudentDashboard } from './components/StudentDashboard';
 import { TeacherPanel } from './components/TeacherPanel';
 import toast from 'react-hot-toast';
@@ -42,12 +43,13 @@ const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ i
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border-2 border-slate-200 dark:border-slate-800 p-8">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-3xl font-bold flex items-center gap-3">
+          <h2 className="text-3xl font-bold flex items-center gap-3 rounded-lg inline-flex" tabIndex={0}>
             <ShieldCheck className="text-blue-600" /> {t.adminLogin}
           </h2>
           <button 
             onClick={onClose}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg outline-none focus:ring-4 focus:ring-blue-500"
+            onKeyDown={handleKey}
+            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
             aria-label={t.cancel}
           >
             <X size={32} />
@@ -62,7 +64,7 @@ const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ i
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xl outline-none focus:ring-4 focus:ring-blue-500"
+              className="w-full p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xl"
               required
             />
           </div>
@@ -73,14 +75,15 @@ const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ i
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xl outline-none focus:ring-4 focus:ring-blue-500"
+              className="w-full p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xl"
               required
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-5 bg-blue-600 text-white rounded-xl text-2xl font-bold hover:bg-blue-700 focus:ring-4 focus:ring-blue-400 outline-none disabled:opacity-50"
+            onKeyDown={handleKey}
+            className="w-full py-5 bg-blue-600 text-white rounded-xl text-2xl font-bold hover:bg-blue-700 disabled:opacity-50"
           >
             {loading ? '...' : t.login}
           </button>
@@ -97,6 +100,10 @@ const AppContent: React.FC = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const { toggleHighContrast, language, setLanguage, t, announce } = useA11y();
+
+  useEffect(() => {
+    announce(t.welcome, 'assertive');
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -170,7 +177,7 @@ const AppContent: React.FC = () => {
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50">
         <header className="bg-white border-b-2 border-slate-200 p-4 sticky top-0 z-50 dark:bg-slate-900 dark:border-slate-800">
           <div className="max-w-7xl mx-auto flex justify-between items-center">
-            <Link to="/" className="flex items-center gap-3 focus:ring-4 focus:ring-blue-500 outline-none rounded-lg p-2">
+            <Link to="/" className="flex items-center gap-3 rounded-lg p-2">
               <div className="bg-blue-600 text-white p-2 rounded-lg font-black text-2xl">{t.shortName}</div>
               <span className="text-2xl font-black tracking-tight hidden sm:block">{t.appName}</span>
             </Link>
@@ -178,7 +185,8 @@ const AppContent: React.FC = () => {
             <div className="flex items-center gap-2 sm:gap-4">
               <button
                 onClick={toggleLanguage}
-                className="p-3 rounded-xl hover:bg-slate-100 focus:ring-4 focus:ring-blue-500 outline-none dark:hover:bg-slate-800 flex items-center gap-2"
+                onKeyDown={handleKey}
+                className="p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"
                 aria-label={t.language}
               >
                 <Languages />
@@ -190,7 +198,8 @@ const AppContent: React.FC = () => {
                   setDarkMode(!darkMode);
                   announce(`${t.darkMode} ${!darkMode ? 'dark' : 'light'}`);
                 }}
-                className="p-3 rounded-xl hover:bg-slate-100 focus:ring-4 focus:ring-blue-500 outline-none dark:hover:bg-slate-800"
+                onKeyDown={handleKey}
+                className="p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
                 aria-label={t.darkMode}
               >
                 {darkMode ? <Sun /> : <Moon />}
@@ -201,7 +210,8 @@ const AppContent: React.FC = () => {
                   toggleHighContrast();
                   announce(t.highContrast);
                 }}
-                className="p-3 rounded-xl hover:bg-slate-100 focus:ring-4 focus:ring-blue-500 outline-none dark:hover:bg-slate-800"
+                onKeyDown={handleKey}
+                className="p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
                 aria-label={t.highContrast}
               >
                 <Accessibility />
@@ -212,7 +222,8 @@ const AppContent: React.FC = () => {
                   <span className="hidden md:block font-bold text-lg">{user.displayName || user.email}</span>
                   <button
                     onClick={handleLogout}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 focus:ring-4 focus:ring-red-400 outline-none dark:bg-red-900/20 dark:text-red-400"
+                    onKeyDown={handleKey}
+                    className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"
                     aria-label={t.logout}
                   >
                     <LogOut size={20} /> <span className="hidden sm:inline">{t.logout}</span>
@@ -221,7 +232,8 @@ const AppContent: React.FC = () => {
               ) : (
                 <button
                   onClick={() => setIsAdminModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 focus:ring-4 focus:ring-slate-400 outline-none dark:bg-slate-800 dark:text-slate-400"
+                  onKeyDown={handleKey}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
                   aria-label={t.adminLogin}
                 >
                   <ShieldCheck size={20} /> <span className="hidden sm:inline">{t.adminLogin}</span>

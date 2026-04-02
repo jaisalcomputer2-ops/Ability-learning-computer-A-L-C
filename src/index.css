@@ -37,6 +37,11 @@
   }
 
   /* Custom focus indicator for all interactive elements */
+  *:focus {
+    outline: 3px solid yellow !important;
+    outline-offset: 2px;
+  }
+
   *:focus-visible {
     outline: 4px solid #3b82f6;
     outline-offset: 4px;

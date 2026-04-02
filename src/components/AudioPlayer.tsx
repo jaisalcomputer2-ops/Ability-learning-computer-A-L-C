@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Howl } from 'howler';
 import { Play, Pause, SkipBack, SkipForward, Volume2 } from 'lucide-react';
+import { handleKey } from '../lib/utils';
 import { useA11y } from './A11yProvider';
 
 interface AudioPlayerProps {
@@ -70,11 +71,13 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, onPositionUpdate,
 
   return (
     <div className="bg-slate-100 p-6 rounded-xl shadow-lg border-2 border-slate-300 dark:bg-slate-800 dark:border-slate-600">
+      <h2 className="sr-only">Audio Player</h2>
       <div className="flex flex-col gap-6">
         <div className="flex justify-center items-center gap-8">
           <button
             onClick={() => seek(-10)}
-            className="p-4 rounded-full hover:bg-slate-200 focus:ring-4 focus:ring-blue-500 outline-none"
+            onKeyDown={handleKey}
+            className="p-4 rounded-full hover:bg-slate-200"
             aria-label="Rewind 10 seconds"
           >
             <SkipBack size={32} />
@@ -82,7 +85,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, onPositionUpdate,
 
           <button
             onClick={togglePlay}
-            className="p-6 rounded-full bg-blue-600 text-white hover:bg-blue-700 focus:ring-4 focus:ring-blue-400 outline-none"
+            onKeyDown={handleKey}
+            className="p-6 rounded-full bg-blue-600 text-white hover:bg-blue-700"
             aria-label={playing ? 'Pause audio' : 'Play audio'}
           >
             {playing ? <Pause size={48} /> : <Play size={48} />}
@@ -90,7 +94,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, onPositionUpdate,
 
           <button
             onClick={() => seek(10)}
-            className="p-4 rounded-full hover:bg-slate-200 focus:ring-4 focus:ring-blue-500 outline-none"
+            onKeyDown={handleKey}
+            className="p-4 rounded-full hover:bg-slate-200"
             aria-label="Forward 10 seconds"
           >
             <SkipForward size={32} />

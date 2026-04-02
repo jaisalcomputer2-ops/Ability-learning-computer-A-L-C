@@ -3,6 +3,7 @@ import { db, auth } from '../firebase';
 import { collection, addDoc, query, onSnapshot, deleteDoc, doc, updateDoc, Timestamp, orderBy, where, getDocs } from 'firebase/firestore';
 import { Plus, Trash2, BookOpen, Music, HelpCircle, Save, AlertTriangle, Edit3, X, BrainCircuit, Sparkles, Loader2 } from 'lucide-react';
 import { useA11y } from './A11yProvider';
+import { handleKey } from '../lib/utils';
 import { GoogleGenAI, Type } from "@google/genai";
 import toast from 'react-hot-toast';
 
@@ -269,21 +270,21 @@ export const TeacherPanel: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-4xl font-bold mb-8 flex items-center gap-4">
+      <h1 className="text-4xl font-bold mb-8 flex items-center gap-4 outline-none focus:ring-4 focus:ring-blue-500 rounded-lg inline-flex" tabIndex={0}>
         <BookOpen size={40} className="text-blue-600" />
         {t.teacherPanel}
       </h1>
 
       <section className="bg-white p-8 rounded-2xl shadow-xl border-2 border-slate-200 mb-12 dark:bg-slate-900 dark:border-slate-700">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold flex items-center gap-3">
+          <h2 className="text-2xl font-bold flex items-center gap-3 rounded-lg inline-flex" tabIndex={0}>
             {editingId ? <Edit3 className="text-blue-600" /> : <Plus className="text-blue-600" />}
             {editingId ? t.editLesson : t.addLesson}
           </h2>
           {editingId && (
             <button 
               onClick={cancelEdit}
-              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg outline-none focus:ring-4 focus:ring-blue-500"
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
               aria-label={t.cancel}
             >
               <X size={24} />
@@ -453,6 +454,7 @@ export const TeacherPanel: React.FC = () => {
                 <button
                   type="button"
                   onClick={addQuizQuestion}
+                  onKeyDown={handleKey}
                   className="flex-1 flex items-center justify-center gap-2 py-4 border-2 border-dashed border-slate-300 rounded-2xl text-xl font-bold text-slate-500 hover:border-blue-500 hover:text-blue-600 dark:border-slate-700"
                 >
                   <Plus /> {t.addQuestion}
@@ -461,6 +463,7 @@ export const TeacherPanel: React.FC = () => {
                 <button
                   type="button"
                   onClick={generateQuizWithAI}
+                  onKeyDown={handleKey}
                   disabled={generatingQuiz}
                   className="flex-1 flex items-center justify-center gap-2 py-4 bg-purple-50 border-2 border-purple-200 rounded-2xl text-xl font-bold text-purple-600 hover:bg-purple-100 dark:bg-purple-900/20 dark:border-purple-800 disabled:opacity-50"
                 >
@@ -474,6 +477,7 @@ export const TeacherPanel: React.FC = () => {
           <button
             type="submit"
             disabled={loading}
+            onKeyDown={handleKey}
             className="flex items-center justify-center gap-3 py-5 bg-blue-600 text-white rounded-xl text-2xl font-bold hover:bg-blue-700 focus:ring-4 focus:ring-blue-400 outline-none disabled:opacity-50"
           >
             <Save /> {editingId ? t.updateLesson : t.saveLesson}
@@ -482,7 +486,7 @@ export const TeacherPanel: React.FC = () => {
       </section>
 
       <section>
-        <h2 className="text-3xl font-bold mb-6">{t.existingLessons}</h2>
+        <h2 className="text-3xl font-bold mb-6 outline-none focus:ring-4 focus:ring-blue-500 rounded-lg inline-block" tabIndex={0}>{t.existingLessons}</h2>
         <div className="grid gap-4">
           {lessons.map((lesson) => (
             <div key={lesson.id} className="bg-white p-6 rounded-2xl border-2 border-slate-200 flex justify-between items-center dark:bg-slate-900 dark:border-slate-800">
@@ -521,7 +525,7 @@ export const TeacherPanel: React.FC = () => {
             <div className="w-20 h-20 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
               <AlertTriangle size={48} className="text-red-600" />
             </div>
-            <h2 className="text-3xl font-bold mb-4">Are you sure?</h2>
+            <h2 className="text-3xl font-bold mb-4 outline-none focus:ring-4 focus:ring-blue-500 rounded-lg inline-block" tabIndex={0}>Are you sure?</h2>
             <p className="text-xl text-slate-600 dark:text-slate-400 mb-8">
               This action cannot be undone. The lesson and its progress will be lost.
             </p>

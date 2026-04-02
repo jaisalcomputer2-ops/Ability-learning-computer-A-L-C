@@ -5,6 +5,7 @@ import { BookOpen, PlayCircle, CheckCircle, ChevronRight, ArrowLeft, Headphones,
 import { AudioPlayer } from './AudioPlayer';
 import { Quiz } from './Quiz';
 import { useA11y } from './A11yProvider';
+import { handleKey } from '../lib/utils';
 import toast from 'react-hot-toast';
 
 export const StudentDashboard: React.FC = () => {
@@ -180,7 +181,7 @@ export const StudentDashboard: React.FC = () => {
             {quiz && (
               <button
                 onClick={() => setView('quiz')}
-                className="w-full py-6 bg-blue-600 text-white rounded-xl text-2xl font-bold hover:bg-blue-700 focus:ring-4 focus:ring-blue-400 outline-none flex items-center justify-center gap-4"
+                className="w-full py-6 bg-blue-600 text-white rounded-xl text-2xl font-bold hover:bg-blue-700 flex items-center justify-center gap-4"
                 aria-label={t.startQuiz}
               >
                 <BrainCircuit size={32} /> {t.startQuiz}
@@ -197,7 +198,7 @@ export const StudentDashboard: React.FC = () => {
       <div className="max-w-4xl mx-auto p-6">
         <button
           onClick={() => setView('lesson')}
-          className="flex items-center gap-2 text-xl font-bold mb-8 text-blue-600 hover:underline focus:ring-4 focus:ring-blue-400 outline-none"
+          className="flex items-center gap-2 text-xl font-bold mb-8 text-blue-600 hover:underline"
           aria-label={t.backToLessons}
         >
           <ArrowLeft /> {t.backToLessons}
@@ -217,7 +218,7 @@ export const StudentDashboard: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-4xl font-bold mb-4">{t.studentDashboard}</h1>
+      <h1 className="text-4xl font-bold mb-4 rounded-lg inline-block" tabIndex={0}>{t.studentDashboard}</h1>
       <p className="text-2xl text-slate-600 mb-12 dark:text-slate-400">{t.description.split('.')[0]}.</p>
 
       <div className="grid gap-8">
@@ -235,8 +236,9 @@ export const StudentDashboard: React.FC = () => {
                   <button
                     key={lesson.id}
                     onClick={() => handleSelectLesson(lesson)}
-                    className="w-full text-left bg-white p-6 rounded-2xl shadow-lg border-2 border-slate-100 hover:border-blue-500 hover:bg-blue-50 transition-all flex justify-between items-center focus:ring-4 focus:ring-blue-500 outline-none dark:bg-slate-900 dark:border-slate-800 dark:hover:bg-slate-800"
-                    aria-label={`${lesson.title}. ${lesson.category}`}
+                    onKeyDown={handleKey}
+                    className="w-full text-left bg-white p-6 rounded-2xl shadow-lg border-2 border-slate-100 hover:border-blue-500 hover:bg-blue-50 transition-all flex justify-between items-center dark:bg-slate-900 dark:border-slate-800 dark:hover:bg-slate-800"
+                    aria-label={`${t.openLesson}: ${lesson.title}. ${t.category}: ${lesson.category}`}
                   >
                     <div className="flex items-center gap-6">
                       <div className="p-4 bg-blue-100 rounded-xl text-blue-600 dark:bg-blue-900/30">
