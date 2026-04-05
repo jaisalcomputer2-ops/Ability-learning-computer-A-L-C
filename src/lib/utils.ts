@@ -34,14 +34,40 @@ export function isYouTubeUrl(url: string): boolean {
 export function getYouTubeEmbedUrl(url: string): string {
   if (!url) return "";
   let videoId = "";
-  if (url.includes('v=')) {
-    videoId = url.split('v=')[1].split('&')[0];
-  } else if (url.includes('youtu.be/')) {
-    videoId = url.split('youtu.be/')[1].split('?')[0];
-  } else if (url.includes('embed/')) {
-    videoId = url.split('embed/')[1].split('?')[0];
+  
+  try {
+    const urlObj = new URL(url);
+    if (urlObj.hostname.includes('youtube.com')) {
+      if (urlObj.pathname.includes('/watch')) {
+        videoId = urlObj.searchParams.get('v') || "";
+      } else if (urlObj.pathname.includes('/embed/')) {
+        videoId = urlObj.pathname.split('/embed/')[1].split('/')[0];
+      } else if (urlObj.pathname.includes('/shorts/')) {
+        videoId = urlObj.pathname.split('/shorts/')[1].split('/')[0];
+      } else if (urlObj.pathname.includes('/v/')) {
+        videoId = urlObj.pathname.split('/v/')[1].split('/')[0];
+      }
+    } else if (urlObj.hostname.includes('youtu.be')) {
+      videoId = urlObj.pathname.slice(1);
+    }
+  } catch (e) {
+    // Fallback to old logic if URL parsing fails
+    if (url.includes('v=')) {
+      videoId = url.split('v=')[1].split('&')[0];
+    } else if (url.includes('youtu.be/')) {
+      videoId = url.split('youtu.be/')[1].split('?')[0];
+    } else if (url.includes('embed/')) {
+      videoId = url.split('embed/')[1].split('?')[0];
+    } else if (url.includes('shorts/')) {
+      videoId = url.split('shorts/')[1].split('?')[0];
+    }
   }
-  return `https://www.youtube.com/embed/${videoId}`;
+  
+  if (!videoId) return "";
+  
+  // Use window.location.origin to fix embed errors
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  return `https://www.youtube.com/embed/${videoId}?rel=0&enablejsapi=1&origin=${origin}&widget_referrer=${origin}`;
 }
 
 /**

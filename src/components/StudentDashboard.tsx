@@ -152,40 +152,43 @@ export const StudentDashboard: React.FC = () => {
 
   const updateProgress = async (data: any) => {
     const newProgress = { ...progress, ...data, updatedAt: Timestamp.now() };
-    
-    if (auth.currentUser) {
-      const fbProgressId = `${auth.currentUser.uid}_${selectedLesson.id}`;
-      await setDoc(doc(db, 'progress', fbProgressId), {
-        userId: auth.currentUser.uid,
-        lessonId: selectedLesson.id,
-        ...newProgress
-      });
-      
-      // Update local allProgress for immediate UI feedback
-      setAllProgress(prev => ({
-        ...prev,
-        [selectedLesson.id]: {
-          userId: auth.currentUser?.uid,
-          lessonId: selectedLesson.id,
-          lessonTitle: selectedLesson.title,
-          ...newProgress
-        }
-      }));
-    } else {
-      const progressId = `progress_${selectedLesson.id}`;
-      localStorage.setItem(progressId, JSON.stringify(newProgress));
-      
-      // Update local allProgress for anonymous users too
-      setAllProgress(prev => ({
-        ...prev,
-        [selectedLesson.id]: {
-          ...newProgress,
-          lessonTitle: selectedLesson.title
-        }
-      }));
-    }
-    
     setProgress(newProgress);
+
+    // Debounce Firestore/LocalStorage writes
+    const timeoutId = (window as any)._progressTimeout;
+    if (timeoutId) clearTimeout(timeoutId);
+
+    (window as any)._progressTimeout = setTimeout(async () => {
+      if (auth.currentUser) {
+        const fbProgressId = `${auth.currentUser.uid}_${selectedLesson.id}`;
+        await setDoc(doc(db, 'progress', fbProgressId), {
+          userId: auth.currentUser.uid,
+          lessonId: selectedLesson.id,
+          ...newProgress
+        });
+        
+        setAllProgress(prev => ({
+          ...prev,
+          [selectedLesson.id]: {
+            userId: auth.currentUser?.uid,
+            lessonId: selectedLesson.id,
+            lessonTitle: selectedLesson.title,
+            ...newProgress
+          }
+        }));
+      } else {
+        const progressId = `progress_${selectedLesson.id}`;
+        localStorage.setItem(progressId, JSON.stringify(newProgress));
+        
+        setAllProgress(prev => ({
+          ...prev,
+          [selectedLesson.id]: {
+            ...newProgress,
+            lessonTitle: selectedLesson.title
+          }
+        }));
+      }
+    }, 2000); // Update every 2 seconds
   };
 
   const processContent = (content: string) => {
@@ -240,18 +243,6 @@ export const StudentDashboard: React.FC = () => {
           </div>
 
           <div className="grid gap-12">
-            <section aria-labelledby="notes-heading">
-              <h2 id="notes-heading" className="text-2xl font-bold mb-4 flex items-center gap-3 outline-none focus:ring-2 focus:ring-blue-400 rounded">
-                <FileText className="text-blue-600" /> {t.lessonNotes}
-              </h2>
-              <div className="prose prose-xl max-w-none bg-slate-50 p-8 rounded-xl border-2 border-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:prose-invert">
-                <div 
-                  className="text-2xl leading-relaxed outline-none focus:ring-2 focus:ring-blue-400 rounded"
-                  dangerouslySetInnerHTML={{ __html: processContent(selectedLesson.textContent) }}
-                />
-              </div>
-            </section>
-
             {selectedLesson.audioUrl && (
               <section aria-labelledby="audio-heading">
                 <h2 id="audio-heading" className="text-2xl font-bold mb-4 flex items-center gap-3 outline-none focus:ring-2 focus:ring-blue-400 rounded">
@@ -266,15 +257,48 @@ export const StudentDashboard: React.FC = () => {
               </section>
             )}
 
+            <section aria-labelledby="notes-heading">
+              <h2 id="notes-heading" className="text-2xl font-bold mb-4 flex items-center gap-3 outline-none focus:ring-2 focus:ring-blue-400 rounded">
+                <FileText className="text-blue-600" /> {t.lessonNotes}
+              </h2>
+              <div className="prose prose-xl max-w-none bg-slate-50 p-8 rounded-xl border-2 border-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:prose-invert">
+                <div 
+                  className="text-2xl leading-relaxed outline-none focus:ring-2 focus:ring-blue-400 rounded"
+                  dangerouslySetInnerHTML={{ __html: processContent(selectedLesson.textContent) }}
+                />
+              </div>
+            </section>
+
             {quiz && (
-              <button
-                onClick={() => navigateTo('quiz')}
-                onKeyDown={handleKey}
-                className="w-full py-6 bg-blue-600 text-white rounded-xl text-2xl font-bold hover:bg-blue-700 flex items-center justify-center gap-4"
-                aria-label={t.startQuiz}
-              >
-                <BrainCircuit size={32} /> {t.startQuiz}
-              </button>
+              <div className="mt-8">
+                {progress?.completed ? (
+                  <button
+                    onClick={() => navigateTo('quiz')}
+                    onKeyDown={handleKey}
+                    className="w-full py-6 bg-green-600 text-white rounded-xl text-2xl font-bold hover:bg-green-700 flex items-center justify-center gap-4 shadow-lg transform transition-all hover:scale-[1.02] active:scale-95"
+                    aria-label={t.startQuiz}
+                  >
+                    <BrainCircuit size={32} /> {language === 'en' ? 'Start Exam' : 'പരീക്ഷ ആരംഭിക്കുക'}
+                  </button>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    <div className="p-6 bg-amber-50 border-2 border-amber-200 rounded-xl dark:bg-amber-900/20 dark:border-amber-800 text-center">
+                      <p className="text-xl font-bold text-amber-800 dark:text-amber-300">
+                        {language === 'en' 
+                          ? 'Please finish listening to the audio or reading the notes to unlock the exam.' 
+                          : 'പരീക്ഷ എഴുതുന്നതിനായി പാഠഭാഗം പൂർണ്ണമായും കേൾക്കുകയോ വായിക്കുകയോ ചെയ്യുക.'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => updateProgress({ completed: true })}
+                      onKeyDown={handleKey}
+                      className="w-full py-4 bg-blue-100 text-blue-700 rounded-xl text-xl font-bold hover:bg-blue-200 flex items-center justify-center gap-3 border-2 border-blue-200"
+                    >
+                      <CheckCircle size={24} /> {language === 'en' ? 'I have finished reading/listening' : 'ഞാൻ പാഠഭാഗം പൂർത്തിയാക്കി'}
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>

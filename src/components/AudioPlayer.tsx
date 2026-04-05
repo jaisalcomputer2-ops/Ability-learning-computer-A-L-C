@@ -14,6 +14,7 @@ interface AudioPlayerProps {
 export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, onPositionUpdate, onComplete, initialPosition = 0 }) => {
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [buffering, setBuffering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [position, setPosition] = useState(initialPosition);
   const [duration, setDuration] = useState(0);
@@ -50,19 +51,43 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, onPositionUpdate,
       }
     };
 
+    const lastReportedTime = useRef(0);
     const handleTimeUpdate = () => {
       setPosition(audio.currentTime);
-      onPositionUpdate?.(audio.currentTime);
+      // Only report position update every 1 second to avoid excessive re-renders/writes
+      if (Math.abs(audio.currentTime - lastReportedTime.current) >= 1) {
+        onPositionUpdate?.(audio.currentTime);
+        lastReportedTime.current = audio.currentTime;
+      }
     };
 
     const handleEnded = () => {
       setPlaying(false);
+      setBuffering(false);
       onComplete?.();
+    };
+
+    const handleWaiting = () => {
+      setBuffering(true);
+    };
+
+    const handleStalled = () => {
+      setBuffering(true);
+    };
+
+    const handlePlaying = () => {
+      setPlaying(true);
+      setBuffering(false);
+    };
+
+    const handlePause = () => {
+      setPlaying(false);
     };
 
     const handleError = (e: any) => {
       console.error('Audio error:', e);
       setLoading(false);
+      setBuffering(false);
       setError('Failed to load audio. This usually happens if the link is incorrect or the file is not shared publicly.');
       announce('Error loading audio');
     };
@@ -70,12 +95,20 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, onPositionUpdate,
     audio.addEventListener('canplay', handleCanPlay);
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('waiting', handleWaiting);
+    audio.addEventListener('stalled', handleStalled);
+    audio.addEventListener('playing', handlePlaying);
+    audio.addEventListener('pause', handlePause);
     audio.addEventListener('error', handleError);
 
     return () => {
       audio.removeEventListener('canplay', handleCanPlay);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('waiting', handleWaiting);
+      audio.removeEventListener('stalled', handleStalled);
+      audio.removeEventListener('playing', handlePlaying);
+      audio.removeEventListener('pause', handlePause);
       audio.removeEventListener('error', handleError);
       audio.pause();
     };
@@ -116,19 +149,31 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, onPositionUpdate,
           <div className="flex items-center gap-2 text-red-600 font-bold mb-2">
             <Youtube /> YouTube Lesson
           </div>
-          <div className="aspect-video w-full rounded-lg overflow-hidden border-2 border-slate-200 dark:border-slate-700">
+          <div className="w-full h-48 sm:h-64 rounded-lg overflow-hidden border-2 border-slate-200 dark:border-slate-700 bg-black shadow-inner">
             <iframe
               src={youtubeUrl}
               className="w-full h-full"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
               title="YouTube Lesson Video"
+              loading="lazy"
             />
           </div>
           <div className="p-4 bg-blue-50 rounded-lg border-2 border-blue-100 dark:bg-blue-900/20 dark:border-blue-900/30">
-            <p className="text-blue-800 dark:text-blue-300 text-sm flex items-center gap-2">
+            <p className="text-blue-800 dark:text-blue-300 text-sm flex items-center gap-2 mb-2">
               <Info size={16} /> YouTube videos are used for audio lessons. You can listen to the video while reading the notes.
             </p>
+            <p className="text-blue-700 dark:text-blue-400 text-xs italic">
+              Note: If the video doesn't play, ensure it is set to "Public" or "Unlisted" on YouTube and "Allow Embedding" is enabled.
+            </p>
+          </div>
+          <div className="flex justify-center">
+            <button 
+              onClick={() => window.location.reload()}
+              className="text-sm text-blue-600 hover:underline flex items-center gap-1 font-bold"
+            >
+              <AlertCircle size={14} /> Video not loading? Click here to refresh
+            </button>
           </div>
         </div>
       ) : (
@@ -137,6 +182,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, onPositionUpdate,
             ref={audioRef} 
             className="hidden" 
             referrerPolicy="no-referrer"
+            preload="auto"
           />
           <h2 className="sr-only">Audio Player</h2>
           
@@ -193,10 +239,10 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, onPositionUpdate,
                   onClick={togglePlay}
                   onKeyDown={handleKey}
                   disabled={loading}
-                  className={`p-6 rounded-full text-white shadow-lg transition-all transform active:scale-95 ${loading ? 'bg-slate-400' : 'bg-blue-600 hover:bg-blue-700'}`}
-                  aria-label={loading ? 'Loading audio' : (playing ? 'Pause audio' : 'Play audio')}
+                  className={`p-6 rounded-full text-white shadow-lg transition-all transform active:scale-95 ${loading || buffering ? 'bg-slate-400' : 'bg-blue-600 hover:bg-blue-700'}`}
+                  aria-label={loading || buffering ? 'Loading audio' : (playing ? 'Pause audio' : 'Play audio')}
                 >
-                  {loading ? (
+                  {loading || buffering ? (
                     <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent" />
                   ) : (
                     playing ? <Pause size={48} /> : <Play size={48} />
@@ -239,21 +285,21 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, onPositionUpdate,
                 
                 <div className="mt-4 flex justify-center">
                   <a 
-                    href={getDirectAudioUrl(url)} 
+                    href={isYouTube ? url : getDirectAudioUrl(url)} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="text-sm text-blue-600 hover:underline flex items-center gap-1 font-bold"
                   >
-                    <Info size={14} /> Having trouble? Open Audio File Directly
+                    <Info size={14} /> {isYouTube ? 'Open on YouTube' : 'Having trouble? Open Audio File Directly'}
                   </a>
                 </div>
 
-                {loading && (
+                {(loading || buffering) && (
                   <div className="mt-4 flex items-center justify-center gap-3 text-blue-600 font-bold animate-pulse">
                     <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" />
                     <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:0.2s]" />
                     <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:0.4s]" />
-                    <span>Loading Audio...</span>
+                    <span>{loading ? 'Loading Audio...' : 'Buffering...'}</span>
                   </div>
                 )}
               </div>

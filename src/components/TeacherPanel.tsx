@@ -4,7 +4,7 @@ import { collection, addDoc, query, onSnapshot, deleteDoc, doc, updateDoc, Times
 import { ref, uploadBytesResumable, getDownloadURL, uploadBytes } from 'firebase/storage';
 import { Plus, Trash2, BookOpen, Music, HelpCircle, Save, AlertTriangle, Edit3, X, BrainCircuit, Sparkles, Loader2, Image as ImageIcon, ChevronDown, ChevronUp, Settings, Type as TypeIcon, Upload, Key, Users, ClipboardCheck, Info, FileAudio } from 'lucide-react';
 import { useA11y } from './A11yProvider';
-import { handleKey, getDirectAudioUrl } from '../lib/utils';
+import { handleKey, getDirectAudioUrl, isYouTubeUrl } from '../lib/utils';
 import { GoogleGenAI, Type } from "@google/genai";
 import { seedLessons } from '../lib/seedData';
 import toast from 'react-hot-toast';
@@ -551,8 +551,10 @@ export const TeacherPanel: React.FC = () => {
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: `Generate a 3-question multiple choice quiz in Malayalam based on this text: "${textContent}". 
-        Return ONLY a JSON array where each object has "question" (string), "options" (array of exactly 3 strings), and "correctAnswer" (number index 0-2). 
+        contents: `Generate a 5-question multiple choice exam in Malayalam based on this text: "${textContent}". 
+        The questions should be clear and suitable for visually impaired students learning computers.
+        Return ONLY a JSON array where each object has "question" (string in Malayalam), "options" (array of exactly 3 strings in Malayalam), and "correctAnswer" (number index 0-2). 
+        Ensure the Malayalam is natural and grammatically correct.
         Ensure the output is a valid JSON array and nothing else.`,
         config: {
           responseMimeType: "application/json",
@@ -917,6 +919,16 @@ export const TeacherPanel: React.FC = () => {
                   className="flex-1 p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xl outline-none focus:ring-4 focus:ring-blue-500"
                   placeholder="Paste YouTube or Dropbox link here"
                 />
+                {audioUrl && isYouTubeUrl(audioUrl) && (
+                  <div className="mt-2 p-3 bg-amber-50 border-2 border-amber-200 rounded-xl dark:bg-amber-900/20 dark:border-amber-800">
+                    <p className="text-sm text-amber-800 dark:text-amber-300 font-bold flex items-center gap-2">
+                      <AlertTriangle size={18} /> 
+                      {language === 'en' 
+                        ? 'YouTube Settings: Ensure the video is "Public" or "Unlisted" and "Allow Embedding" is enabled.' 
+                        : 'YouTube ക്രമീകരണങ്ങൾ: വീഡിയോ "Public" അല്ലെങ്കിൽ "Unlisted" ആണെന്നും "Allow Embedding" ഓൺ ആണെന്നും ഉറപ്പുവരുത്തുക.'}
+                    </p>
+                  </div>
+                )}
                 <div className="relative flex gap-2">
                   <div className="relative">
                     <input
