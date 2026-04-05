@@ -240,6 +240,18 @@ export const StudentDashboard: React.FC = () => {
           </div>
 
           <div className="grid gap-12">
+            <section aria-labelledby="notes-heading">
+              <h2 id="notes-heading" className="text-2xl font-bold mb-4 flex items-center gap-3 outline-none focus:ring-2 focus:ring-blue-400 rounded">
+                <FileText className="text-blue-600" /> {t.lessonNotes}
+              </h2>
+              <div className="prose prose-xl max-w-none bg-slate-50 p-8 rounded-xl border-2 border-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:prose-invert">
+                <div 
+                  className="text-2xl leading-relaxed outline-none focus:ring-2 focus:ring-blue-400 rounded"
+                  dangerouslySetInnerHTML={{ __html: processContent(selectedLesson.textContent) }}
+                />
+              </div>
+            </section>
+
             {selectedLesson.audioUrl && (
               <section aria-labelledby="audio-heading">
                 <h2 id="audio-heading" className="text-2xl font-bold mb-4 flex items-center gap-3 outline-none focus:ring-2 focus:ring-blue-400 rounded">
@@ -253,18 +265,6 @@ export const StudentDashboard: React.FC = () => {
                 />
               </section>
             )}
-
-            <section aria-labelledby="notes-heading">
-              <h2 id="notes-heading" className="text-2xl font-bold mb-4 flex items-center gap-3 outline-none focus:ring-2 focus:ring-blue-400 rounded">
-                <FileText className="text-blue-600" /> {t.lessonNotes}
-              </h2>
-              <div className="prose prose-xl max-w-none bg-slate-50 p-8 rounded-xl border-2 border-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:prose-invert">
-                <div 
-                  className="text-2xl leading-relaxed outline-none focus:ring-2 focus:ring-blue-400 rounded"
-                  dangerouslySetInnerHTML={{ __html: processContent(selectedLesson.textContent) }}
-                />
-              </div>
-            </section>
 
             {quiz && (
               <button

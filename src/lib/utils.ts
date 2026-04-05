@@ -13,22 +13,35 @@ export function cn(...inputs: ClassValue[]) {
 export function getDirectAudioUrl(url: string): string {
   if (!url) return "";
   
-  // Handle Google Drive links
-  if (url.includes('drive.google.com')) {
-    // Extract ID from various Drive link formats
-    const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || 
-                        url.match(/id=([a-zA-Z0-9_-]+)/) ||
-                        url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-                        
-    if (fileIdMatch && fileIdMatch[1]) {
-      const id = fileIdMatch[1];
-      // Use the direct download link format with confirm=t for large files
-      // This helps bypass the virus scan warning for some public files
-      return `https://drive.google.com/uc?export=download&id=${id}&confirm=t`;
-    }
+  // Handle Dropbox links
+  if (url.includes('dropbox.com')) {
+    return url.replace('www.dropbox.com', 'dl.dropboxusercontent.com').replace('?dl=0', '').replace('?dl=1', '');
+  }
+  
+  // Handle Catbox.moe links (ensure they are direct)
+  if (url.includes('catbox.moe') && !url.includes('files.catbox.moe')) {
+    return url.replace('catbox.moe', 'files.catbox.moe');
   }
   
   return url;
+}
+
+export function isYouTubeUrl(url: string): boolean {
+  if (!url) return false;
+  return url.includes('youtube.com') || url.includes('youtu.be');
+}
+
+export function getYouTubeEmbedUrl(url: string): string {
+  if (!url) return "";
+  let videoId = "";
+  if (url.includes('v=')) {
+    videoId = url.split('v=')[1].split('&')[0];
+  } else if (url.includes('youtu.be/')) {
+    videoId = url.split('youtu.be/')[1].split('?')[0];
+  } else if (url.includes('embed/')) {
+    videoId = url.split('embed/')[1].split('?')[0];
+  }
+  return `https://www.youtube.com/embed/${videoId}`;
 }
 
 /**

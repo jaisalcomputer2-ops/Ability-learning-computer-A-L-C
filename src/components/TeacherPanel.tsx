@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth, storage } from '../firebase';
-import { collection, addDoc, query, onSnapshot, deleteDoc, doc, updateDoc, Timestamp, orderBy, where, getDocs, setDoc } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { collection, addDoc, query, onSnapshot, deleteDoc, doc, updateDoc, Timestamp, orderBy, where, getDocs, setDoc, getDocFromServer } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL, uploadBytes } from 'firebase/storage';
 import { Plus, Trash2, BookOpen, Music, HelpCircle, Save, AlertTriangle, Edit3, X, BrainCircuit, Sparkles, Loader2, Image as ImageIcon, ChevronDown, ChevronUp, Settings, Type as TypeIcon, Upload, Key, Users, ClipboardCheck, Info, FileAudio } from 'lucide-react';
 import { useA11y } from './A11yProvider';
 import { handleKey, getDirectAudioUrl } from '../lib/utils';
@@ -89,7 +89,58 @@ export const TeacherPanel: React.FC = () => {
   const [generatedCode, setGeneratedCode] = useState('');
   const [showExamPanel, setShowExamPanel] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [testingConnection, setTestingConnection] = useState(false);
+
+  const testFirebaseConnection = async () => {
+    if (!auth.currentUser) {
+      toast.error(language === 'en' ? 'Please log in first' : 'ദയവായി ആദ്യം ലോഗിൻ ചെയ്യുക');
+      return;
+    }
+
+    setTestingConnection(true);
+    const testTimeout = setTimeout(() => {
+      setTestingConnection(false);
+      toast.error(language === 'en' ? 'Connection test timed out. This usually means Firebase is not responding.' : 'കണക്ഷൻ വൈകുന്നു. ഫയർബേസ് പ്രതികരിക്കുന്നില്ല.');
+    }, 15000);
+
+    try {
+      console.log("Testing Firestore connection...");
+      await getDocFromServer(doc(db, 'config', 'connection_test'));
+      
+      console.log("Testing Storage connection...");
+      const storageRef = ref(storage, 'connection_test.txt');
+      if (!storageRef.bucket) {
+        throw new Error("Storage bucket not configured");
+      }
+
+      const blob = new Blob(["test"], { type: 'text/plain' });
+      await uploadBytes(storageRef, blob);
+      
+      clearTimeout(testTimeout);
+      toast.success(language === 'en' ? 'Firebase connection is working perfectly!' : 'ഫയർബേസ് കണക്ഷൻ കൃത്യമായി പ്രവർത്തിക്കുന്നു!');
+    } catch (error: any) {
+      clearTimeout(testTimeout);
+      console.error("Firebase Connection Test Error:", error);
+      let msg = error.message || 'Unknown error';
+      if (msg.includes('storage/unauthorized')) {
+        msg = language === 'en' ? 'Storage Access Denied. Check Rules.' : 'സ്റ്റോറേജ് അനുമതി നിഷേധിക്കപ്പെട്ടു. Rules പരിശോധിക്കുക.';
+      }
+      toast.error(`Error: ${msg}`);
+    } finally {
+      setTestingConnection(false);
+    }
+  };
   const { announce, t, language } = useA11y();
+
+  useEffect(() => {
+    if (audioUrl.includes('drive.google.com') && !audioUrl.includes('uc?export=download')) {
+      const fixed = getDirectAudioUrl(audioUrl);
+      if (fixed !== audioUrl) {
+        setAudioUrl(fixed);
+        toast.success(language === 'en' ? 'Google Drive link optimized!' : 'ഗൂഗിൾ ഡ്രൈവ് ലിങ്ക് ശരിയാക്കി!');
+      }
+    }
+  }, [audioUrl, language]);
 
   useEffect(() => {
     const q = query(collection(db, 'lessons'), orderBy('order', 'asc'));
@@ -839,6 +890,24 @@ export const TeacherPanel: React.FC = () => {
           <div className="grid md:grid-cols-1 gap-6">
             <div>
               <label className="block text-lg font-bold mb-2 outline-none focus:ring-2 focus:ring-blue-400 rounded inline-block" htmlFor="audioUrl" tabIndex={0}>{t.audioUrl}</label>
+              
+              <div className="p-4 bg-blue-50 rounded-lg border-2 border-blue-100 dark:bg-blue-900/20 dark:border-blue-900/30 mb-4">
+                <p className="text-blue-800 dark:text-blue-300 font-bold flex items-center gap-2 mb-2">
+                  <Info size={20} /> Simple Ways to Add Audio:
+                </p>
+                <ul className="text-blue-700 dark:text-blue-400 list-disc ml-5 space-y-2 text-sm">
+                  <li>
+                    <strong>YouTube (Recommended):</strong> Upload your audio as a video (even with a static image) to YouTube. Set it to "Unlisted" and paste the link here. It works 100% of the time.
+                  </li>
+                  <li>
+                    <strong>Dropbox:</strong> Upload your audio to Dropbox, copy the "Share" link, and paste it here.
+                  </li>
+                  <li>
+                    <strong>Catbox.moe:</strong> Go to <a href="https://catbox.moe" target="_blank" rel="noopener noreferrer" className="underline">catbox.moe</a>, upload your audio, and paste the direct link here. It's very simple and fast.
+                  </li>
+                </ul>
+              </div>
+
               <div className="flex gap-2">
                 <input
                   id="audioUrl"
@@ -846,57 +915,51 @@ export const TeacherPanel: React.FC = () => {
                   value={audioUrl}
                   onChange={(e) => setAudioUrl(e.target.value)}
                   className="flex-1 p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xl outline-none focus:ring-4 focus:ring-blue-500"
-                  placeholder="https://example.com/audio.mp3"
+                  placeholder="Paste YouTube or Dropbox link here"
                 />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const fixed = getDirectAudioUrl(audioUrl);
-                    if (fixed !== audioUrl) {
-                      setAudioUrl(fixed);
-                      toast.success(language === 'en' ? 'Link fixed for Google Drive!' : 'ഗൂഗിൾ ഡ്രൈവ് ലിങ്ക് ശരിയാക്കി!');
-                    } else if (audioUrl.includes('drive.google.com')) {
-                      toast.success(language === 'en' ? 'Link is already in direct format' : 'ലിങ്ക് ഇപ്പോൾ തന്നെ ശരിയായ രൂപത്തിലാണ്');
-                    } else {
-                      toast.error(language === 'en' ? 'Not a Google Drive link' : 'ഇതൊരു ഗൂഗിൾ ഡ്രൈവ് ലിങ്ക് അല്ല');
-                    }
-                  }}
-                  className="px-4 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 font-bold transition-colors"
-                  title="Fix Google Drive link"
-                >
-                  Fix Link
-                </button>
-                <div className="relative">
-                  <input
-                    type="file"
-                    accept="audio/*"
-                    onChange={handleAudioUpload}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    title="Upload audio file"
-                  />
+                <div className="relative flex gap-2">
+                  <div className="relative">
+                    <input
+                      type="file"
+                      accept="audio/*"
+                      onChange={handleAudioUpload}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      title="Upload audio file"
+                    />
+                    <button
+                      type="button"
+                      className="h-full px-6 bg-slate-100 border-2 border-slate-200 rounded-xl hover:bg-slate-200 dark:bg-slate-800 dark:border-slate-700 flex items-center gap-2 font-bold transition-colors"
+                    >
+                      {uploadProgress !== null ? (
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="animate-spin text-blue-600" size={20} />
+                          <span>{Math.round(uploadProgress)}%</span>
+                        </div>
+                      ) : (
+                        <>
+                          <FileAudio size={24} className="text-blue-600" />
+                          <span className="hidden sm:inline">Upload</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                   <button
                     type="button"
-                    className="h-full px-6 bg-slate-100 border-2 border-slate-200 rounded-xl hover:bg-slate-200 dark:bg-slate-800 dark:border-slate-700 flex items-center gap-2 font-bold transition-colors"
+                    onClick={testFirebaseConnection}
+                    disabled={testingConnection}
+                    className="p-4 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 font-bold transition-colors flex items-center gap-2"
+                    title="Test Firebase Connection"
                   >
-                    {uploadProgress !== null ? (
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="animate-spin text-blue-600" size={20} />
-                        <span>{Math.round(uploadProgress)}%</span>
-                      </div>
-                    ) : (
-                      <>
-                        <FileAudio size={24} className="text-blue-600" />
-                        <span className="hidden sm:inline">Upload</span>
-                      </>
-                    )}
+                    {testingConnection ? <Loader2 className="animate-spin" size={20} /> : <Info size={20} />}
+                    <span className="hidden sm:inline">Test</span>
                   </button>
                 </div>
               </div>
               <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1">
                 <Info size={14} /> 
                 {language === 'en' 
-                  ? 'Direct upload (Max 50MB) or Google Drive link (Shared as "Anyone with the link can view").' 
-                  : 'നേരിട്ട് അപ്‌ലോഡ് ചെയ്യാം (പരമാവധി 50MB) അല്ലെങ്കിൽ ഗൂഗിൾ ഡ്രൈവ് ലിങ്ക് നൽകാം.'}
+                  ? 'Paste YouTube, Dropbox, or Direct Audio links. Or upload directly (Max 50MB).' 
+                  : 'യൂട്യൂബ്, ഡ്രോപ്പ്ബോക്സ് അല്ലെങ്കിൽ നേരിട്ടുള്ള ഓഡിയോ ലിങ്കുകൾ നൽകാം. നേരിട്ട് അപ്‌ലോഡ് ചെയ്യാനും സാധിക്കും (പരമാവധി 50MB).'}
               </p>
             </div>
           </div>
