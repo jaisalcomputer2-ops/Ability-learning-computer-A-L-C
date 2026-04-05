@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, Timestamp, onSnapshot, getDocFromServer } from 'firebase/firestore';
 import { Toaster } from 'react-hot-toast';
 import { LogIn, LogOut, User, Settings, Accessibility, Sun, Moon, Languages, ShieldCheck, X } from 'lucide-react';
 import { A11yProvider, useA11y } from './components/A11yProvider';
 import { handleKey } from './lib/utils';
+import { seedLessons } from './lib/seedData';
 import { StudentDashboard } from './components/StudentDashboard';
 import { TeacherPanel } from './components/TeacherPanel';
 import toast from 'react-hot-toast';
@@ -58,24 +59,24 @@ const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ i
 
         <form onSubmit={handleSubmit} className="grid gap-6">
           <div>
-            <label className="block text-xl font-bold mb-2" htmlFor="admin-email">{t.email}</label>
+            <label className="block text-xl font-bold mb-2 outline-none focus:ring-2 focus:ring-blue-400 rounded inline-block" htmlFor="admin-email" tabIndex={0}>{t.email}</label>
             <input
               id="admin-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xl"
+              className="w-full p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xl focus:ring-4 focus:ring-blue-400 outline-none"
               required
             />
           </div>
           <div>
-            <label className="block text-xl font-bold mb-2" htmlFor="admin-password">{t.password}</label>
+            <label className="block text-xl font-bold mb-2 outline-none focus:ring-2 focus:ring-blue-400 rounded inline-block" htmlFor="admin-password" tabIndex={0}>{t.password}</label>
             <input
               id="admin-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xl"
+              className="w-full p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xl focus:ring-4 focus:ring-blue-400 outline-none"
               required
             />
           </div>
@@ -99,10 +100,38 @@ const AppContent: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [logoBase64, setLogoBase64] = useState<string | null>(null);
+  const [appName, setAppName] = useState<string>('');
   const { toggleHighContrast, language, setLanguage, t, announce } = useA11y();
 
   useEffect(() => {
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, 'config', 'app'));
+      } catch (error) {
+        if(error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration. ");
+          toast.error("Firebase is offline. Please check your connection.");
+        }
+      }
+    };
+    testConnection();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribeConfig = onSnapshot(doc(db, 'config', 'app'), (doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        setLogoBase64(data.logo || null);
+        setAppName(data.name || '');
+      }
+    });
+    return () => unsubscribeConfig();
+  }, []);
+
+  useEffect(() => {
     announce(t.welcome, 'assertive');
+    seedLessons().catch(err => console.error("Error seeding lessons:", err));
   }, []);
 
   useEffect(() => {
@@ -153,6 +182,11 @@ const AppContent: React.FC = () => {
     return () => unsubscribe();
   }, [language]);
 
+  useEffect(() => {
+    (window as any).goBack = () => window.history.back();
+    return () => { delete (window as any).goBack; };
+  }, []);
+
   const handleLogout = async () => {
     await signOut(auth);
     announce(t.logout);
@@ -175,11 +209,21 @@ const AppContent: React.FC = () => {
   return (
     <div className={darkMode ? 'dark' : ''}>
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50">
-        <header className="bg-white border-b-2 border-slate-200 p-4 sticky top-0 z-50 dark:bg-slate-900 dark:border-slate-800">
+        <header role="banner" className="bg-white border-b-2 border-slate-200 p-4 sticky top-0 z-50 dark:bg-slate-900 dark:border-slate-800">
           <div className="max-w-7xl mx-auto flex justify-between items-center">
-            <Link to="/" className="flex items-center gap-3 rounded-lg p-2">
-              <div className="bg-blue-600 text-white p-2 rounded-lg font-black text-2xl">{t.shortName}</div>
-              <span className="text-2xl font-black tracking-tight hidden sm:block">{t.appName}</span>
+            <Link to="/" className="flex items-center gap-3 rounded-lg p-2 outline-none focus:ring-4 focus:ring-blue-400">
+              <img 
+                src={logoBase64 || "/logo.png"} 
+                alt="Ability Foundation Logo" 
+                className="h-[50px] w-auto rounded-lg object-contain"
+                onError={(e) => {
+                  if (!logoBase64) {
+                    e.currentTarget.src = "https://api.dicebear.com/7.x/initials/svg?seed=ACL&backgroundColor=2a5bd7&fontSize=50";
+                  }
+                }}
+                referrerPolicy="no-referrer"
+              />
+              <span className="text-2xl font-black tracking-tight outline-none focus:ring-2 focus:ring-blue-400 rounded">{appName || t.appName}</span>
             </Link>
 
             <div className="flex items-center gap-2 sm:gap-4">
@@ -219,7 +263,7 @@ const AppContent: React.FC = () => {
 
               {user ? (
                 <div className="flex items-center gap-4">
-                  <span className="hidden md:block font-bold text-lg">{user.displayName || user.email}</span>
+                  <span className="hidden md:block font-bold text-lg outline-none focus:ring-2 focus:ring-blue-400 rounded" tabIndex={0}>{user.displayName || user.email}</span>
                   <button
                     onClick={handleLogout}
                     onKeyDown={handleKey}
@@ -243,12 +287,12 @@ const AppContent: React.FC = () => {
           </div>
         </header>
 
-        <main className="py-8">
+        <main role="main" className="py-8">
           {role === 'teacher' ? <TeacherPanel /> : <StudentDashboard />}
         </main>
 
-        <footer className="p-8 text-center text-slate-500 border-t-2 border-slate-100 dark:border-slate-800">
-          <p className="text-lg">{t.footer}</p>
+        <footer role="contentinfo" className="p-8 text-center text-slate-500 border-t-2 border-slate-100 dark:border-slate-800">
+          <p className="text-lg outline-none focus:ring-2 focus:ring-blue-400 rounded inline-block">{appName || t.appName} - {t.footer}</p>
         </footer>
 
         <AdminLoginModal isOpen={isAdminModalOpen} onClose={() => setIsAdminModalOpen(false)} />

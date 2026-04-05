@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../firebase';
 import { collection, query, onSnapshot, where, doc, getDoc, setDoc, Timestamp, orderBy } from 'firebase/firestore';
-import { BookOpen, PlayCircle, CheckCircle, ChevronRight, ArrowLeft, Headphones, FileText, BrainCircuit } from 'lucide-react';
+import { BookOpen, PlayCircle, CheckCircle, ChevronRight, ArrowLeft, Headphones, FileText, BrainCircuit, Accessibility, GraduationCap } from 'lucide-react';
 import { AudioPlayer } from './AudioPlayer';
 import { Quiz } from './Quiz';
+import { LandingPage } from './LandingPage';
+import { ExamSystem } from './ExamSystem';
 import { useA11y } from './A11yProvider';
-import { handleKey } from '../lib/utils';
+import { handleKey, getDirectAudioUrl } from '../lib/utils';
 import toast from 'react-hot-toast';
 
 export const StudentDashboard: React.FC = () => {
@@ -14,11 +16,74 @@ export const StudentDashboard: React.FC = () => {
   const [quiz, setQuiz] = useState<any>(null);
   const [progress, setProgress] = useState<any>(null);
   const [allProgress, setAllProgress] = useState<Record<string, any>>({});
-  const [view, setView] = useState<'list' | 'lesson' | 'quiz'>('list');
-  const { announce, t } = useA11y();
+  const [view, setView] = useState<'list' | 'lesson' | 'quiz' | 'exam'>('list');
+  const { announce, t, language } = useA11y();
+  
+  // Sync view state with browser history
+  useEffect(() => {
+    // Push initial state if not present
+    if (!window.history.state?.view) {
+      window.history.replaceState({ view: 'list' }, '');
+    }
+
+    const handlePopState = (e: PopStateEvent) => {
+      if (e.state?.view) {
+        setView(e.state.view);
+        if (e.state.lesson) setSelectedLesson(e.state.lesson);
+      } else {
+        setView('list');
+        setSelectedLesson(null);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const goBack = () => {
+    window.history.back();
+  };
+
+  const navigateTo = (newView: 'list' | 'lesson' | 'quiz' | 'exam', lesson?: any) => {
+    setView(newView);
+    if (lesson) setSelectedLesson(lesson);
+    window.history.pushState({ view: newView, lesson }, '');
+  };
 
   useEffect(() => {
-    const q = query(collection(db, 'lessons'), orderBy('order', 'asc'));
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      if (e.altKey && e.key === 'ArrowLeft') {
+        if (view === 'lesson') {
+          setView('list');
+          announce(t.backToLessons);
+        } else if (view === 'quiz') {
+          setView('lesson');
+          announce(t.backToLessons);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKey);
+    return () => window.removeEventListener('keydown', handleGlobalKey);
+  }, [view, t]);
+
+  useEffect(() => {
+    if (view === 'lesson' && selectedLesson) {
+      // Small delay to ensure the view has rendered and the title announcement is finished
+      setTimeout(() => {
+        announce(t.lessonOpenedInstructions);
+      }, 500);
+    } else if (view === 'exam') {
+      setTimeout(() => {
+        announce(t.examInstructions);
+      }, 500);
+    }
+  }, [view, selectedLesson?.id]);
+
+  useEffect(() => {
+    const q = query(
+      collection(db, 'lessons'), 
+      where('language', '==', language),
+      orderBy('order', 'asc')
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setLessons(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => {
@@ -52,11 +117,10 @@ export const StudentDashboard: React.FC = () => {
     }
 
     return () => unsubscribe();
-  }, [lessons.length, auth.currentUser?.uid]);
+  }, [lessons.length, auth.currentUser?.uid, language]);
 
   const handleSelectLesson = async (lesson: any) => {
-    setSelectedLesson(lesson);
-    setView('lesson');
+    navigateTo('lesson', lesson);
     announce(`${lesson.title}. ${lesson.category}`);
     
     const progressId = `progress_${lesson.id}`;
@@ -124,26 +188,49 @@ export const StudentDashboard: React.FC = () => {
     setProgress(newProgress);
   };
 
+  const processContent = (content: string) => {
+    if (!content) return "";
+    let processed = content.replace(/\n/g, '<br/>');
+    // Fix Google Drive links in embedded HTML src attributes
+    processed = processed.replace(/src=['"](https:\/\/drive\.google\.com\/[^'"]+)['"]/g, (match, url) => {
+      return `src="${getDirectAudioUrl(url)}"`;
+    });
+    return processed;
+  };
+
   if (view === 'lesson' && selectedLesson) {
     return (
       <div className="max-w-4xl mx-auto p-6">
         <button
-          onClick={() => setView('list')}
-          className="flex items-center gap-2 text-xl font-bold mb-8 text-blue-600 hover:underline focus:ring-4 focus:ring-blue-400 outline-none"
+          onClick={goBack}
+          onKeyDown={handleKey}
+          tabIndex={0}
+          className="flex items-center gap-2 text-xl font-bold mb-8 text-blue-600 hover:underline"
           aria-label={t.backToLessons}
         >
           <ArrowLeft /> {t.backToLessons}
         </button>
 
         <div className="bg-white p-8 rounded-2xl shadow-xl border-2 border-slate-200 dark:bg-slate-900 dark:border-slate-700">
+          {/* Visible Accessibility Instructions */}
+          <div 
+            className="mb-8 p-6 bg-blue-50 border-2 border-blue-200 rounded-xl dark:bg-blue-900/20 dark:border-blue-800"
+            tabIndex={0}
+            aria-label="Navigation Instructions"
+          >
+            <p className="text-xl font-bold text-blue-800 dark:text-blue-300 flex items-center gap-2">
+              <Accessibility size={24} /> {t.lessonOpenedInstructions}
+            </p>
+          </div>
+
           <div className="flex justify-between items-start mb-8">
             <div>
               <div className="flex items-center gap-3">
-                <span className="text-lg font-bold text-slate-500 uppercase tracking-widest">{selectedLesson.category}</span>
+                <span className="text-lg font-bold text-slate-500 uppercase tracking-widest outline-none focus:ring-2 focus:ring-blue-400 rounded">{selectedLesson.category}</span>
                 <span className="text-slate-300">•</span>
-                <span className="text-lg font-bold text-blue-600 uppercase tracking-widest">{selectedLesson.level || 'Basic'}</span>
+                <span className="text-lg font-bold text-blue-600 uppercase tracking-widest outline-none focus:ring-2 focus:ring-blue-400 rounded">{selectedLesson.level || 'Basic'}</span>
               </div>
-              <h1 className="text-4xl font-bold mt-2">{selectedLesson.title}</h1>
+              <h1 className="text-4xl font-bold mt-2 outline-none focus:ring-2 focus:ring-blue-400 rounded">{selectedLesson.title}</h1>
             </div>
             {progress?.completed && (
               <div className="flex items-center gap-2 text-green-600 font-bold text-xl">
@@ -155,7 +242,7 @@ export const StudentDashboard: React.FC = () => {
           <div className="grid gap-12">
             {selectedLesson.audioUrl && (
               <section aria-labelledby="audio-heading">
-                <h2 id="audio-heading" className="text-2xl font-bold mb-4 flex items-center gap-3">
+                <h2 id="audio-heading" className="text-2xl font-bold mb-4 flex items-center gap-3 outline-none focus:ring-2 focus:ring-blue-400 rounded">
                   <Headphones className="text-blue-600" /> {t.audioLesson}
                 </h2>
                 <AudioPlayer 
@@ -168,19 +255,21 @@ export const StudentDashboard: React.FC = () => {
             )}
 
             <section aria-labelledby="notes-heading">
-              <h2 id="notes-heading" className="text-2xl font-bold mb-4 flex items-center gap-3">
+              <h2 id="notes-heading" className="text-2xl font-bold mb-4 flex items-center gap-3 outline-none focus:ring-2 focus:ring-blue-400 rounded">
                 <FileText className="text-blue-600" /> {t.lessonNotes}
               </h2>
               <div className="prose prose-xl max-w-none bg-slate-50 p-8 rounded-xl border-2 border-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:prose-invert">
-                {selectedLesson.textContent.split('\n').map((para: string, i: number) => (
-                  <p key={i} className="mb-4 text-2xl leading-relaxed">{para}</p>
-                ))}
+                <div 
+                  className="text-2xl leading-relaxed outline-none focus:ring-2 focus:ring-blue-400 rounded"
+                  dangerouslySetInnerHTML={{ __html: processContent(selectedLesson.textContent) }}
+                />
               </div>
             </section>
 
             {quiz && (
               <button
-                onClick={() => setView('quiz')}
+                onClick={() => navigateTo('quiz')}
+                onKeyDown={handleKey}
                 className="w-full py-6 bg-blue-600 text-white rounded-xl text-2xl font-bold hover:bg-blue-700 flex items-center justify-center gap-4"
                 aria-label={t.startQuiz}
               >
@@ -197,7 +286,9 @@ export const StudentDashboard: React.FC = () => {
     return (
       <div className="max-w-4xl mx-auto p-6">
         <button
-          onClick={() => setView('lesson')}
+          onClick={goBack}
+          onKeyDown={handleKey}
+          tabIndex={0}
           className="flex items-center gap-2 text-xl font-bold mb-8 text-blue-600 hover:underline"
           aria-label={t.backToLessons}
         >
@@ -205,21 +296,66 @@ export const StudentDashboard: React.FC = () => {
         </button>
         <Quiz 
           questions={quiz.questions} 
-          onComplete={(score) => updateProgress({ 
-            completed: true, 
-            score, 
-            totalQuestions: quiz.questions.length,
-            lessonTitle: selectedLesson.title
-          })}
+          onComplete={(score) => {
+            updateProgress({ 
+              completed: true, 
+              score, 
+              totalQuestions: quiz.questions.length,
+              lessonTitle: selectedLesson.title
+            });
+            goBack();
+          }}
         />
+      </div>
+    );
+  }
+
+  if (view === 'exam') {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-12">
+        <div className="max-w-4xl mx-auto px-4">
+          <button
+            onClick={goBack}
+            onKeyDown={handleKey}
+            tabIndex={0}
+            className="mb-8 flex items-center gap-3 text-xl font-bold text-slate-600 hover:text-blue-600 focus:ring-4 focus:ring-blue-400 rounded-lg p-2 outline-none"
+            aria-label={t.backToLessons}
+          >
+            <ArrowLeft /> {t.backToLessons}
+          </button>
+          <ExamSystem />
+        </div>
       </div>
     );
   }
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-4xl font-bold mb-4 rounded-lg inline-block" tabIndex={0}>{t.studentDashboard}</h1>
-      <p className="text-2xl text-slate-600 mb-12 dark:text-slate-400">{t.description.split('.')[0]}.</p>
+      <div className="mb-12">
+        <LandingPage />
+      </div>
+
+      <h1 className="text-4xl font-bold mb-4 rounded-lg inline-block">{t.studentDashboard}</h1>
+      <p className="text-2xl text-slate-600 mb-12 dark:text-slate-400 outline-none focus:ring-2 focus:ring-blue-400 rounded">{t.description.split('.')[0]}.</p>
+
+      {/* Final Exam Section */}
+      <div className="mb-12 bg-blue-600 p-8 rounded-3xl text-white shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="flex items-center gap-6">
+          <div className="p-4 bg-white/20 rounded-2xl">
+            <GraduationCap size={48} />
+          </div>
+          <div>
+            <h2 className="text-3xl font-bold mb-2">{t.examSystem}</h2>
+            <p className="text-xl opacity-90">{t.examHeader}</p>
+          </div>
+        </div>
+        <button
+          onClick={() => navigateTo('exam')}
+          className="px-8 py-4 bg-white text-blue-600 rounded-2xl text-2xl font-bold hover:bg-blue-50 focus:ring-4 focus:ring-white/50 outline-none transition-all shadow-lg"
+        >
+          {t.enterCode}
+        </button>
+      </div>
 
       <div className="grid gap-8">
         {Array.from(new Set(lessons.map(l => l.category))).sort().map(cat => {
@@ -228,7 +364,7 @@ export const StudentDashboard: React.FC = () => {
 
           return (
             <section key={cat} aria-labelledby={`cat-${cat}`}>
-              <h2 id={`cat-${cat}`} className="text-2xl font-bold mb-4 text-slate-800 dark:text-slate-200 border-b-4 border-blue-600 inline-block pb-1">
+              <h2 id={`cat-${cat}`} className="text-2xl font-bold mb-4 text-slate-800 dark:text-slate-200 border-b-4 border-blue-600 inline-block pb-1 outline-none focus:ring-2 focus:ring-blue-400 rounded">
                 {cat}
               </h2>
               <div className="grid gap-4 mt-4">

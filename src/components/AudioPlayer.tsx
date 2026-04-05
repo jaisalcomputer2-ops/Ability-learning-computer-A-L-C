@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Howl } from 'howler';
-import { Play, Pause, SkipBack, SkipForward, Volume2 } from 'lucide-react';
-import { handleKey } from '../lib/utils';
+import { Play, Pause, SkipBack, SkipForward, AlertCircle, Info } from 'lucide-react';
+import { getDirectAudioUrl, handleKey } from '../lib/utils';
 import { useA11y } from './A11yProvider';
 
 interface AudioPlayerProps {
@@ -13,57 +12,87 @@ interface AudioPlayerProps {
 
 export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, onPositionUpdate, onComplete, initialPosition = 0 }) => {
   const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [position, setPosition] = useState(initialPosition);
   const [duration, setDuration] = useState(0);
-  const soundRef = useRef<Howl | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const { announce } = useA11y();
 
   useEffect(() => {
-    soundRef.current = new Howl({
-      src: [url],
-      html5: true,
-      onload: () => {
-        setDuration(soundRef.current?.duration() || 0);
-        if (initialPosition > 0) {
-          soundRef.current?.seek(initialPosition);
-        }
-      },
-      onplay: () => setPlaying(true),
-      onpause: () => setPlaying(false),
-      onend: () => {
-        setPlaying(false);
-        onComplete?.();
-      },
-    });
+    const audio = audioRef.current;
+    if (!audio) return;
 
-    const interval = setInterval(() => {
-      if (soundRef.current && playing) {
-        const currentPos = soundRef.current.seek() as number;
-        setPosition(currentPos);
-        onPositionUpdate?.(currentPos);
+    setLoading(true);
+    setError(null);
+    setPlaying(false);
+    
+    const directUrl = getDirectAudioUrl(url);
+    audio.src = directUrl;
+    audio.load();
+
+    const handleCanPlay = () => {
+      setLoading(false);
+      setDuration(audio.duration);
+      if (initialPosition > 0) {
+        audio.currentTime = initialPosition;
       }
-    }, 1000);
+    };
+
+    const handleTimeUpdate = () => {
+      setPosition(audio.currentTime);
+      onPositionUpdate?.(audio.currentTime);
+    };
+
+    const handleEnded = () => {
+      setPlaying(false);
+      onComplete?.();
+    };
+
+    const handleError = (e: any) => {
+      console.error('Audio error:', e);
+      setLoading(false);
+      setError('Failed to load audio. This usually happens if the link is incorrect or the file is not shared publicly.');
+      announce('Error loading audio');
+    };
+
+    audio.addEventListener('canplay', handleCanPlay);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('error', handleError);
 
     return () => {
-      soundRef.current?.unload();
-      clearInterval(interval);
+      audio.removeEventListener('canplay', handleCanPlay);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('error', handleError);
+      audio.pause();
     };
   }, [url]);
 
   const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio || loading) return;
+    
     if (playing) {
-      soundRef.current?.pause();
+      audio.pause();
+      setPlaying(false);
       announce('Audio paused');
     } else {
-      soundRef.current?.play();
+      audio.play().catch(err => {
+        console.error('Play error:', err);
+        setError('Could not play audio. Please try again.');
+      });
+      setPlaying(true);
       announce('Audio playing');
     }
   };
 
   const seek = (seconds: number) => {
-    if (soundRef.current) {
-      const newPos = Math.max(0, Math.min(duration, position + seconds));
-      soundRef.current.seek(newPos);
+    const audio = audioRef.current;
+    if (audio && !loading) {
+      const newPos = Math.max(0, Math.min(duration, audio.currentTime + seconds));
+      audio.currentTime = newPos;
       setPosition(newPos);
       announce(`Seeked to ${Math.floor(newPos)} seconds`);
     }
@@ -71,58 +100,106 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ url, onPositionUpdate,
 
   return (
     <div className="bg-slate-100 p-6 rounded-xl shadow-lg border-2 border-slate-300 dark:bg-slate-800 dark:border-slate-600">
+      <audio ref={audioRef} className="hidden" />
       <h2 className="sr-only">Audio Player</h2>
-      <div className="flex flex-col gap-6">
-        <div className="flex justify-center items-center gap-8">
-          <button
-            onClick={() => seek(-10)}
-            onKeyDown={handleKey}
-            className="p-4 rounded-full hover:bg-slate-200"
-            aria-label="Rewind 10 seconds"
-          >
-            <SkipBack size={32} />
-          </button>
-
-          <button
-            onClick={togglePlay}
-            onKeyDown={handleKey}
-            className="p-6 rounded-full bg-blue-600 text-white hover:bg-blue-700"
-            aria-label={playing ? 'Pause audio' : 'Play audio'}
-          >
-            {playing ? <Pause size={48} /> : <Play size={48} />}
-          </button>
-
-          <button
-            onClick={() => seek(10)}
-            onKeyDown={handleKey}
-            className="p-4 rounded-full hover:bg-slate-200"
-            aria-label="Forward 10 seconds"
-          >
-            <SkipForward size={32} />
-          </button>
-        </div>
-
-        <div className="w-full">
-          <label htmlFor="audio-progress" className="sr-only">Audio progress</label>
-          <input
-            id="audio-progress"
-            type="range"
-            min="0"
-            max={duration || 100}
-            value={position}
-            onChange={(e) => {
-              const val = parseFloat(e.target.value);
-              soundRef.current?.seek(val);
-              setPosition(val);
-            }}
-            className="w-full h-4 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-blue-600"
-          />
-          <div className="flex justify-between mt-2 font-mono text-lg">
-            <span>{Math.floor(position / 60)}:{Math.floor(position % 60).toString().padStart(2, '0')}</span>
-            <span>{Math.floor(duration / 60)}:{Math.floor(duration % 60).toString().padStart(2, '0')}</span>
+      
+      {error ? (
+        <div className="flex flex-col gap-4">
+          <div className="text-center p-6 text-red-600 font-bold bg-red-50 rounded-lg border-2 border-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/30">
+            <AlertCircle className="mx-auto mb-2" size={32} />
+            <p className="text-lg mb-4">{error}</p>
+            <div className="flex flex-col gap-2">
+              <button 
+                onClick={() => window.location.reload()}
+                className="bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+          
+          <div className="p-4 bg-blue-50 rounded-lg border-2 border-blue-100 dark:bg-blue-900/20 dark:border-blue-900/30">
+            <p className="text-blue-800 dark:text-blue-300 font-bold flex items-center gap-2 mb-2">
+              <Info size={20} /> Important Note for Google Drive:
+            </p>
+            <ul className="text-blue-700 dark:text-blue-400 list-disc ml-5 space-y-1">
+              <li>Ensure the file is shared as <strong>"Anyone with the link can view"</strong>.</li>
+              <li>Wait a few minutes after uploading for Google to process the file.</li>
+              <li>Make sure you copied the correct link from the "Share" menu.</li>
+            </ul>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex flex-col gap-6">
+          <div className="flex justify-center items-center gap-8">
+            <button
+              onClick={() => seek(-10)}
+              onKeyDown={handleKey}
+              disabled={loading}
+              className="p-4 rounded-full hover:bg-slate-200 disabled:opacity-50 transition-colors"
+              aria-label="Rewind 10 seconds"
+            >
+              <SkipBack size={32} />
+            </button>
+
+            <button
+              onClick={togglePlay}
+              onKeyDown={handleKey}
+              disabled={loading}
+              className={`p-6 rounded-full text-white shadow-lg transition-all transform active:scale-95 ${loading ? 'bg-slate-400' : 'bg-blue-600 hover:bg-blue-700'}`}
+              aria-label={loading ? 'Loading audio' : (playing ? 'Pause audio' : 'Play audio')}
+            >
+              {loading ? (
+                <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent" />
+              ) : (
+                playing ? <Pause size={48} /> : <Play size={48} />
+              )}
+            </button>
+
+            <button
+              onClick={() => seek(10)}
+              onKeyDown={handleKey}
+              disabled={loading}
+              className="p-4 rounded-full hover:bg-slate-200 disabled:opacity-50 transition-colors"
+              aria-label="Forward 10 seconds"
+            >
+              <SkipForward size={32} />
+            </button>
+          </div>
+
+          <div className="w-full">
+            <label htmlFor="audio-progress" className="sr-only">Audio progress</label>
+            <input
+              id="audio-progress"
+              type="range"
+              min="0"
+              max={duration || 100}
+              value={position}
+              disabled={loading}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                if (audioRef.current) audioRef.current.currentTime = val;
+                setPosition(val);
+              }}
+              className="w-full h-4 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-blue-600 disabled:opacity-50"
+            />
+            <div className="flex justify-between mt-2 font-mono text-xl font-bold text-slate-600 dark:text-slate-400">
+              <span>{Math.floor(position / 60)}:{Math.floor(position % 60).toString().padStart(2, '0')}</span>
+              <span>
+                {loading ? '--:--' : `${Math.floor(duration / 60)}:${Math.floor(duration % 60).toString().padStart(2, '0')}`}
+              </span>
+            </div>
+            {loading && (
+              <div className="mt-4 flex items-center justify-center gap-3 text-blue-600 font-bold animate-pulse">
+                <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" />
+                <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:0.2s]" />
+                <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:0.4s]" />
+                <span>Loading Audio...</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

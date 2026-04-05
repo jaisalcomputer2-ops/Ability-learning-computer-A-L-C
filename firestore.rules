@@ -4,8 +4,9 @@ service cloud.firestore {
 
     function isTeacher() {
       return request.auth != null && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher' ||
-         request.auth.token.email.lower() in ["jaisalcomputer2@gmail.com", "dqjaisal@gmail.com"]);
+        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher') ||
+         (request.auth.token.email != null && request.auth.token.email.lower() in ["jaisalcomputer2@gmail.com", "dqjaisal@gmail.com"]));
     }
 
     match /lessons/{docId} {
@@ -33,6 +34,21 @@ service cloud.firestore {
     match /categories/{catId} {
       allow read: if true;
       allow write: if isTeacher();
+    }
+
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if isTeacher();
+    }
+
+    match /exam_codes/{codeId} {
+      allow read: if true;
+      allow write: if isTeacher();
+    }
+
+    match /exam_results/{resultId} {
+      allow read: if isTeacher();
+      allow create: if true;
     }
   }
 }

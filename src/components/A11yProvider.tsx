@@ -31,6 +31,7 @@ export const A11yProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <A11yContext.Provider value={{ highContrast, toggleHighContrast, language, setLanguage, t, announce }}>
       <div className={highContrast ? 'high-contrast' : ''}>
         <div 
+          id="screenReader"
           aria-live={announcement.priority} 
           className="sr-only" 
           role="status"
