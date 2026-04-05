@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../firebase';
 import { collection, query, onSnapshot, where, doc, getDoc, setDoc, Timestamp, orderBy } from 'firebase/firestore';
-import { BookOpen, PlayCircle, CheckCircle, ChevronRight, ArrowLeft, Headphones, FileText, BrainCircuit, Accessibility, GraduationCap } from 'lucide-react';
+import { BookOpen, PlayCircle, CheckCircle, ChevronRight, ArrowLeft, Headphones, FileText, BrainCircuit, Accessibility, GraduationCap, Award } from 'lucide-react';
 import { AudioPlayer } from './AudioPlayer';
 import { Quiz } from './Quiz';
 import { LandingPage } from './LandingPage';
@@ -10,13 +10,18 @@ import { useA11y } from './A11yProvider';
 import { handleKey, getDirectAudioUrl } from '../lib/utils';
 import toast from 'react-hot-toast';
 
-export const StudentDashboard: React.FC = () => {
+interface StudentDashboardProps {
+  studentUser: any;
+}
+
+export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentUser }) => {
   const [lessons, setLessons] = useState<any[]>([]);
   const [selectedLesson, setSelectedLesson] = useState<any>(null);
   const [quiz, setQuiz] = useState<any>(null);
   const [progress, setProgress] = useState<any>(null);
   const [allProgress, setAllProgress] = useState<Record<string, any>>({});
   const [view, setView] = useState<'list' | 'lesson' | 'quiz' | 'exam'>('list');
+  const [finalExamAssigned, setFinalExamAssigned] = useState(false);
   const { announce, t, language } = useA11y();
   
   // Sync view state with browser history
@@ -91,14 +96,18 @@ export const StudentDashboard: React.FC = () => {
       toast.error("Failed to load lessons");
     });
 
-    if (auth.currentUser) {
-      const pq = query(collection(db, 'progress'), where('userId', '==', auth.currentUser.uid));
+    if (studentUser) {
+      const pq = query(collection(db, 'progress'), where('userId', '==', studentUser.registerId));
       const unsubscribeProgress = onSnapshot(pq, (snapshot) => {
         const progMap: Record<string, any> = {};
+        let assigned = false;
         snapshot.docs.forEach(doc => {
-          progMap[doc.data().lessonId] = doc.data();
+          const data = doc.data();
+          progMap[data.lessonId] = data;
+          if (data.finalExamAssigned) assigned = true;
         });
         setAllProgress(progMap);
+        setFinalExamAssigned(assigned);
       });
       return () => {
         unsubscribe();
@@ -117,15 +126,15 @@ export const StudentDashboard: React.FC = () => {
     }
 
     return () => unsubscribe();
-  }, [lessons.length, auth.currentUser?.uid, language]);
+  }, [lessons.length, studentUser?.registerId, language]);
 
   const handleSelectLesson = async (lesson: any) => {
     navigateTo('lesson', lesson);
     announce(`${lesson.title}. ${lesson.category}`);
     
     const progressId = `progress_${lesson.id}`;
-    if (auth.currentUser) {
-      const fbProgressId = `${auth.currentUser.uid}_${lesson.id}`;
+    if (studentUser) {
+      const fbProgressId = `${studentUser.registerId}_${lesson.id}`;
       const progressDoc = await getDoc(doc(db, 'progress', fbProgressId));
       if (progressDoc.exists()) {
         setProgress(progressDoc.data());
@@ -159,10 +168,10 @@ export const StudentDashboard: React.FC = () => {
     if (timeoutId) clearTimeout(timeoutId);
 
     (window as any)._progressTimeout = setTimeout(async () => {
-      if (auth.currentUser) {
-        const fbProgressId = `${auth.currentUser.uid}_${selectedLesson.id}`;
+      if (studentUser) {
+        const fbProgressId = `${studentUser.registerId}_${selectedLesson.id}`;
         await setDoc(doc(db, 'progress', fbProgressId), {
-          userId: auth.currentUser.uid,
+          userId: studentUser.registerId,
           lessonId: selectedLesson.id,
           ...newProgress
         });
@@ -170,7 +179,7 @@ export const StudentDashboard: React.FC = () => {
         setAllProgress(prev => ({
           ...prev,
           [selectedLesson.id]: {
-            userId: auth.currentUser?.uid,
+            userId: studentUser.registerId,
             lessonId: selectedLesson.id,
             lessonTitle: selectedLesson.title,
             ...newProgress
@@ -347,7 +356,7 @@ export const StudentDashboard: React.FC = () => {
           >
             <ArrowLeft /> {t.backToLessons}
           </button>
-          <ExamSystem />
+          <ExamSystem studentUser={studentUser} />
         </div>
       </div>
     );
@@ -360,25 +369,62 @@ export const StudentDashboard: React.FC = () => {
       </div>
 
       <h1 className="text-4xl font-bold mb-4 rounded-lg inline-block">{t.studentDashboard}</h1>
-      <p className="text-2xl text-slate-600 mb-12 dark:text-slate-400 outline-none focus:ring-2 focus:ring-blue-400 rounded">{t.description.split('.')[0]}.</p>
+      <p className="text-2xl text-slate-600 mb-8 dark:text-slate-400 outline-none focus:ring-2 focus:ring-blue-400 rounded">{t.description.split('.')[0]}.</p>
 
-      {/* Final Exam Section */}
-      <div className="mb-12 bg-blue-600 p-8 rounded-3xl text-white shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="flex items-center gap-6">
-          <div className="p-4 bg-white/20 rounded-2xl">
-            <GraduationCap size={48} />
+      {/* Progress Summary Section */}
+      <div className="mb-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-3xl shadow-lg border-2 border-slate-100 dark:bg-slate-900 dark:border-slate-800 flex flex-col items-center text-center">
+          <div className="p-4 bg-blue-100 rounded-2xl text-blue-600 mb-4 dark:bg-blue-900/30">
+            <CheckCircle size={32} />
           </div>
-          <div>
-            <h2 className="text-3xl font-bold mb-2">{t.examSystem}</h2>
-            <p className="text-xl opacity-90">{t.examHeader}</p>
-          </div>
+          <h3 className="text-xl font-bold text-slate-500 uppercase tracking-wider mb-1">{t.lessonsCompleted}</h3>
+          <p className="text-5xl font-black text-blue-600">
+            {Object.values(allProgress).filter((p: any) => p.completed).length}
+            <span className="text-2xl text-slate-300 ml-1">/ {lessons.length}</span>
+          </p>
         </div>
-        <button
-          onClick={() => navigateTo('exam')}
-          className="px-8 py-4 bg-white text-blue-600 rounded-2xl text-2xl font-bold hover:bg-blue-50 focus:ring-4 focus:ring-white/50 outline-none transition-all shadow-lg"
-        >
-          {t.enterCode}
-        </button>
+
+        <div className="bg-white p-6 rounded-3xl shadow-lg border-2 border-slate-100 dark:bg-slate-900 dark:border-slate-800 flex flex-col items-center text-center">
+          <div className="p-4 bg-green-100 rounded-2xl text-green-600 mb-4 dark:bg-green-900/30">
+            <Award size={32} className="lucide lucide-award" />
+          </div>
+          <h3 className="text-xl font-bold text-slate-500 uppercase tracking-wider mb-1">{t.averageScore}</h3>
+          <p className="text-5xl font-black text-green-600">
+            {(() => {
+              const scores = Object.values(allProgress).filter((p: any) => p.score !== undefined) as any[];
+              if (scores.length === 0) return '0%';
+              const avg = (() => {
+                let sum = 0;
+                for (const curr of scores) {
+                  const s = Number(curr.score) || 0;
+                  const t = Number(curr.totalQuestions) || 1;
+                  sum += (s / t);
+                }
+                return sum / scores.length;
+              })();
+              return Math.round(avg * 100) + '%';
+            })()}
+          </p>
+        </div>
+
+        <div className="bg-white p-6 rounded-3xl shadow-lg border-2 border-slate-100 dark:bg-slate-900 dark:border-slate-800 flex flex-col items-center text-center">
+          <div className="p-4 bg-purple-100 rounded-2xl text-purple-600 mb-4 dark:bg-purple-900/30">
+            <GraduationCap size={32} />
+          </div>
+          <h3 className="text-xl font-bold text-slate-500 uppercase tracking-wider mb-1">{t.finalExam}</h3>
+          {finalExamAssigned ? (
+            <button
+              onClick={() => navigateTo('exam')}
+              className="mt-2 px-6 py-3 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-all shadow-md active:scale-95"
+            >
+              {t.enterCode}
+            </button>
+          ) : (
+            <p className="text-lg text-slate-400 italic mt-2">
+              {t.waitingForAssignment}
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-8">

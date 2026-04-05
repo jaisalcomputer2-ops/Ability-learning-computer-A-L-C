@@ -10,6 +10,8 @@ import { handleKey } from './lib/utils';
 import { seedLessons } from './lib/seedData';
 import { StudentDashboard } from './components/StudentDashboard';
 import { TeacherPanel } from './components/TeacherPanel';
+import { StudentAuth } from './components/StudentAuth';
+import { LandingPage } from './components/LandingPage';
 import toast from 'react-hot-toast';
 
 const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
@@ -96,6 +98,7 @@ const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ i
 
 const AppContent: React.FC = () => {
   const [user, setUser] = useState<any>(null);
+  const [studentUser, setStudentUser] = useState<any>(null);
   const [role, setRole] = useState<'student' | 'teacher' | null>(null);
   const [loading, setLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
@@ -132,6 +135,15 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     announce(t.welcome, 'assertive');
     seedLessons().catch(err => console.error("Error seeding lessons:", err));
+  }, []);
+
+  useEffect(() => {
+    const savedStudent = localStorage.getItem('student_session');
+    if (savedStudent) {
+      const parsed = JSON.parse(savedStudent);
+      setStudentUser(parsed);
+      setRole('student');
+    }
   }, []);
 
   useEffect(() => {
@@ -188,8 +200,22 @@ const AppContent: React.FC = () => {
   }, []);
 
   const handleLogout = async () => {
-    await signOut(auth);
+    if (user) {
+      await signOut(auth);
+    }
+    if (studentUser) {
+      setStudentUser(null);
+      localStorage.removeItem('student_session');
+    }
+    setRole(null);
     announce(t.logout);
+  };
+
+  const handleStudentLogin = (student: any) => {
+    setStudentUser(student);
+    setRole('student');
+    localStorage.setItem('student_session', JSON.stringify(student));
+    announce(`${t.loginSuccess} ${student.name}`);
   };
 
   const toggleLanguage = () => {
@@ -288,7 +314,28 @@ const AppContent: React.FC = () => {
         </header>
 
         <main role="main" className="py-8">
-          {role === 'teacher' ? <TeacherPanel /> : <StudentDashboard />}
+          {role === 'teacher' ? (
+            <TeacherPanel />
+          ) : role === 'student' ? (
+            <StudentDashboard studentUser={studentUser} />
+          ) : (
+            <div className="max-w-4xl mx-auto px-4">
+              <div className="mb-12">
+                <LandingPage />
+              </div>
+              <div className="bg-blue-50 dark:bg-blue-900/10 p-8 rounded-3xl border-2 border-blue-100 dark:border-blue-900/30 mb-12 text-center">
+                <h2 className="text-3xl font-black text-blue-800 dark:text-blue-300 mb-4">
+                  {language === 'en' ? 'Student Access Required' : 'വിദ്യാർത്ഥികൾക്ക് പ്രവേശനം ആവശ്യമാണ്'}
+                </h2>
+                <p className="text-xl text-slate-600 dark:text-slate-400 mb-8">
+                  {language === 'en' 
+                    ? 'Please login with your Register ID to access the lessons and exams.' 
+                    : 'പാഠഭാഗങ്ങളും പരീക്ഷകളും കാണുന്നതിനായി നിങ്ങളുടെ രജിസ്റ്റർ ID ഉപയോഗിച്ച് ലോഗിൻ ചെയ്യുക.'}
+                </p>
+                <StudentAuth onLogin={handleStudentLogin} />
+              </div>
+            </div>
+          )}
         </main>
 
         <footer role="contentinfo" className="p-8 text-center text-slate-500 border-t-2 border-slate-100 dark:border-slate-800">

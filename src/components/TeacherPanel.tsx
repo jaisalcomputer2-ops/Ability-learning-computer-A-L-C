@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, auth, storage } from '../firebase';
 import { collection, addDoc, query, onSnapshot, deleteDoc, doc, updateDoc, Timestamp, orderBy, where, getDocs, setDoc, getDocFromServer } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, uploadBytes } from 'firebase/storage';
-import { Plus, Trash2, BookOpen, Music, HelpCircle, Save, AlertTriangle, Edit3, X, BrainCircuit, Sparkles, Loader2, Image as ImageIcon, ChevronDown, ChevronUp, Settings, Type as TypeIcon, Upload, Key, Users, ClipboardCheck, Info, FileAudio } from 'lucide-react';
+import { Plus, Trash2, BookOpen, Music, HelpCircle, Save, AlertTriangle, Edit3, X, BrainCircuit, Sparkles, Loader2, Image as ImageIcon, ChevronDown, ChevronUp, Settings, Type as TypeIcon, Upload, Key, Users, ClipboardCheck, Info, FileAudio, GraduationCap } from 'lucide-react';
 import { useA11y } from './A11yProvider';
 import { handleKey, getDirectAudioUrl, isYouTubeUrl } from '../lib/utils';
 import { GoogleGenAI, Type } from "@google/genai";
@@ -90,6 +90,10 @@ export const TeacherPanel: React.FC = () => {
   const [showExamPanel, setShowExamPanel] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
+  const [studentsProgress, setStudentsProgress] = useState<any[]>([]);
+  const [registrationRequests, setRegistrationRequests] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'lessons' | 'exams' | 'students' | 'requests' | 'settings'>('lessons');
+  const [seedingLessons, setSeedingLessons] = useState(false);
 
   const testFirebaseConnection = async () => {
     if (!auth.currentUser) {
@@ -196,6 +200,57 @@ export const TeacherPanel: React.FC = () => {
       unsubscribeCodes();
       unsubscribeResults();
     };
+  }, []);
+
+  const [usersMap, setUsersMap] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    const qUsers = query(collection(db, 'users'), where('role', '==', 'student'));
+    const unsubscribeUsers = onSnapshot(qUsers, (snapshot) => {
+      const map: Record<string, any> = {};
+      snapshot.docs.forEach(doc => {
+        map[doc.id] = doc.data();
+      });
+      setUsersMap(map);
+    });
+    return () => unsubscribeUsers();
+  }, []);
+
+  useEffect(() => {
+    const qProgress = query(collection(db, 'progress'));
+    const unsubscribeProgress = onSnapshot(qProgress, (snapshot) => {
+      const studentMap: Record<string, any> = {};
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (!studentMap[data.userId]) {
+          studentMap[data.userId] = {
+            userId: data.userId,
+            name: usersMap[data.userId]?.name || 'Student',
+            completedLessons: 0,
+            scores: [],
+            finalExamAssigned: false,
+            lastActive: data.updatedAt
+          };
+        }
+        if (data.completed) studentMap[data.userId].completedLessons++;
+        if (data.score !== undefined) studentMap[data.userId].scores.push(data.score / (data.totalQuestions || 1));
+        if (data.finalExamAssigned) studentMap[data.userId].finalExamAssigned = true;
+        if (data.updatedAt?.toMillis() > (studentMap[data.userId].lastActive?.toMillis() || 0)) {
+          studentMap[data.userId].lastActive = data.updatedAt;
+        }
+      });
+      setStudentsProgress(Object.values(studentMap));
+    });
+
+    return () => unsubscribeProgress();
+  }, [usersMap]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'registration_requests'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setRegistrationRequests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribe();
   }, []);
 
   const handleSaveSettings = async () => {
@@ -600,6 +655,156 @@ export const TeacherPanel: React.FC = () => {
     }
   };
 
+  const handleAssignFinalExam = async (userId: string) => {
+    setLoading(true);
+    try {
+      // 1. Get all quizzes
+      const quizzesSnapshot = await getDocs(collection(db, 'quizzes'));
+      let allQuestions: any[] = [];
+      quizzesSnapshot.docs.forEach(doc => {
+        allQuestions = [...allQuestions, ...doc.data().questions];
+      });
+
+      if (allQuestions.length === 0) {
+        toast.error('No quiz questions found to create an exam.');
+        return;
+      }
+
+      // 2. Pick 20 random questions (or all if less than 20)
+      const shuffled = allQuestions.sort(() => 0.5 - Math.random());
+      const selected = shuffled.slice(0, 20);
+
+      // 3. Create assigned exam
+      await setDoc(doc(db, 'assigned_exams', userId), {
+        userId,
+        questions: selected,
+        assignedAt: Timestamp.now(),
+        completed: false
+      });
+
+      // 4. Set flag in progress (using a dummy lessonId 'final_exam' to store the flag)
+      await setDoc(doc(db, 'progress', `${userId}_final_exam`), {
+        userId,
+        lessonId: 'final_exam',
+        finalExamAssigned: true,
+        updatedAt: Timestamp.now()
+      }, { merge: true });
+
+      toast.success('Final Exam assigned successfully!');
+      announce('Final Exam assigned to student');
+    } catch (error) {
+      console.error("Assign Final Exam Error:", error);
+      toast.error('Failed to assign final exam');
+    } finally {
+      setLoading(false);
+    }
+  };
+  const handleApproveRequest = async (request: any) => {
+    setLoading(true);
+    try {
+      const registerId = "ACL-" + Math.floor(1000 + Math.random() * 9000);
+      
+      // Create user document
+      await setDoc(doc(db, 'users', registerId), {
+        registerId,
+        name: request.name,
+        email: request.email,
+        age: request.age,
+        role: 'student',
+        createdAt: Timestamp.now(),
+        status: 'approved'
+      });
+
+      // Update request
+      await updateDoc(doc(db, 'registration_requests', request.id), {
+        status: 'approved',
+        registerId,
+        updatedAt: Timestamp.now()
+      });
+
+      toast.success(`Approved! Register ID: ${registerId}`);
+      announce(`Approved student ${request.name}. Register ID is ${registerId}`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `registration_requests/${request.id}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSeedAILessons = async () => {
+    setSeedingLessons(true);
+    try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) throw new Error('Gemini API key missing');
+
+      const ai = new GoogleGenAI({ apiKey });
+      const prompt = `Generate 3 high-quality computer lessons for visually impaired students in ${language === 'en' ? 'English' : 'Malayalam'}.
+      Topics: 1. Keyboard Basics, 2. Desktop Navigation, 3. Using Screen Readers.
+      For each lesson, provide:
+      - title
+      - category (e.g., 'Basics')
+      - textContent (Detailed, descriptive text that explains concepts clearly for someone who cannot see the screen)
+      - quiz (5 multiple choice questions with 3 options each and correct index)
+      Return as a JSON array of objects.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                category: { type: Type.STRING },
+                textContent: { type: Type.STRING },
+                quiz: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      question: { type: Type.STRING },
+                      options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                      correctAnswer: { type: Type.INTEGER }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+
+      const generatedLessons = JSON.parse(response.text || '[]');
+      for (const lesson of generatedLessons) {
+        const docRef = await addDoc(collection(db, 'lessons'), {
+          title: lesson.title,
+          category: lesson.category,
+          textContent: lesson.textContent,
+          language: language,
+          level: 'Basic',
+          order: lessons.length + 1,
+          createdAt: Timestamp.now()
+        });
+
+        await addDoc(collection(db, 'quizzes'), {
+          lessonId: docRef.id,
+          questions: lesson.quiz,
+          createdAt: Timestamp.now()
+        });
+      }
+
+      toast.success('AI Lessons generated successfully!');
+    } catch (error) {
+      console.error("AI Seeding Error:", error);
+      toast.error('Failed to seed AI lessons');
+    } finally {
+      setSeedingLessons(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'lessons', id));
@@ -617,79 +822,179 @@ export const TeacherPanel: React.FC = () => {
         {t.teacherPanel}
       </h1>
 
-      {/* App Settings Section */}
-      <section className="bg-white p-8 rounded-2xl shadow-xl border-2 border-slate-200 mb-12 dark:bg-slate-900 dark:border-slate-700">
-        <h2 className="text-2xl font-bold mb-8 flex items-center gap-3">
-          <Settings className="text-blue-600" /> App Settings
-        </h2>
-        
-        <div className="grid md:grid-cols-2 gap-12">
-          {/* App Name Settings */}
-          <div className="space-y-4">
-            <h3 className="text-xl font-bold flex items-center gap-2">
-              <TypeIcon className="text-blue-600" size={20} /> App Name
-            </h3>
-            <div className="flex flex-col gap-3">
-              <input
-                type="text"
-                value={appName}
-                onChange={(e) => setAppName(e.target.value)}
-                placeholder="Enter App Name"
-                className="w-full p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-lg focus:ring-4 focus:ring-blue-400 outline-none"
-              />
-              <button
-                onClick={handleSaveSettings}
-                disabled={savingSettings}
-                className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {savingSettings ? <Loader2 className="animate-spin" /> : <Save size={20} />}
-                {savingSettings ? 'Saving...' : 'Save App Name'}
-              </button>
+      {/* Tab Navigation */}
+      <div className="flex flex-wrap gap-2 mb-8 bg-slate-100 p-2 rounded-2xl dark:bg-slate-800/50">
+        <button
+          onClick={() => setActiveTab('lessons')}
+          className={`flex-1 py-3 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'lessons' ? 'bg-white text-blue-600 shadow-md dark:bg-slate-900' : 'text-slate-500 hover:bg-white/50 dark:hover:bg-slate-800'}`}
+        >
+          <BookOpen size={20} /> {t.existingLessons}
+        </button>
+        <button
+          onClick={() => setActiveTab('students')}
+          className={`flex-1 py-3 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'students' ? 'bg-white text-blue-600 shadow-md dark:bg-slate-900' : 'text-slate-500 hover:bg-white/50 dark:hover:bg-slate-800'}`}
+        >
+          <Users size={20} /> {t.students}
+        </button>
+        <button
+          onClick={() => setActiveTab('exams')}
+          className={`flex-1 py-3 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'exams' ? 'bg-white text-blue-600 shadow-md dark:bg-slate-900' : 'text-slate-500 hover:bg-white/50 dark:hover:bg-slate-800'}`}
+        >
+          <GraduationCap size={20} /> {t.examSystem}
+        </button>
+        <button
+          onClick={() => setActiveTab('requests')}
+          className={`flex-1 py-3 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'requests' ? 'bg-white text-blue-600 shadow-md dark:bg-slate-900' : 'text-slate-500 hover:bg-white/50 dark:hover:bg-slate-800'}`}
+        >
+          <ClipboardCheck size={20} /> {t.registrationRequests}
+        </button>
+        <button
+          onClick={() => setActiveTab('settings')}
+          className={`flex-1 py-3 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'settings' ? 'bg-white text-blue-600 shadow-md dark:bg-slate-900' : 'text-slate-500 hover:bg-white/50 dark:hover:bg-slate-800'}`}
+        >
+          <Settings size={20} /> {t.logoSettings}
+        </button>
+      </div>
+
+      {activeTab === 'settings' && (
+        <section className="bg-white p-8 rounded-2xl shadow-xl border-2 border-slate-200 mb-12 dark:bg-slate-900 dark:border-slate-700">
+          <h2 className="text-2xl font-bold mb-8 flex items-center gap-3">
+            <Settings className="text-blue-600" /> App Settings
+          </h2>
+          
+          <div className="grid md:grid-cols-2 gap-12">
+            {/* App Name Settings */}
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                <TypeIcon className="text-blue-600" size={20} /> App Name
+              </h3>
+              <div className="flex flex-col gap-3">
+                <input
+                  type="text"
+                  value={appName}
+                  onChange={(e) => setAppName(e.target.value)}
+                  placeholder="Enter App Name"
+                  className="w-full p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-lg focus:ring-4 focus:ring-blue-400 outline-none"
+                />
+                <button
+                  onClick={handleSaveSettings}
+                  disabled={savingSettings}
+                  className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {savingSettings ? <Loader2 className="animate-spin" /> : <Save size={20} />}
+                  {savingSettings ? 'Saving...' : 'Save App Name'}
+                </button>
+              </div>
+            </div>
+
+            {/* Logo Settings */}
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                <ImageIcon className="text-blue-600" size={20} /> Logo Settings
+              </h3>
+              <div className="flex flex-col items-center gap-6 p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                <div className="w-32 h-32 bg-slate-100 rounded-2xl flex items-center justify-center dark:bg-slate-800 overflow-hidden shadow-inner">
+                  {logoBase64 ? (
+                    <img src={logoBase64} alt="Current Logo" className="w-full h-full object-contain" />
+                  ) : (
+                    <ImageIcon size={48} className="text-slate-300" />
+                  )}
+                </div>
+                <div className="text-center w-full">
+                  <p className="text-sm text-slate-500 mb-4">
+                    {t.uploadLogo} (PNG/JPG, max 500KB)
+                  </p>
+                  <label className="w-full cursor-pointer inline-flex items-center justify-center gap-2 px-6 py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all disabled:opacity-50">
+                    {uploadingLogo ? <Loader2 className="animate-spin" /> : <Upload size={20} />}
+                    {uploadingLogo ? 'Uploading...' : t.uploadLogo}
+                    <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} disabled={uploadingLogo} />
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
+        </section>
+      )}
 
-          {/* Logo Settings */}
-          <div className="space-y-4">
-            <h3 className="text-xl font-bold flex items-center gap-2">
-              <ImageIcon className="text-blue-600" size={20} /> Logo Settings
-            </h3>
-            <div className="flex flex-col items-center gap-6 p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
-              <div className="w-32 h-32 bg-slate-100 rounded-2xl flex items-center justify-center dark:bg-slate-800 overflow-hidden shadow-inner">
-                {logoBase64 ? (
-                  <img src={logoBase64} alt="Current Logo" className="w-full h-full object-contain" />
-                ) : (
-                  <ImageIcon size={48} className="text-slate-300" />
-                )}
+      {activeTab === 'students' && (
+        <section className="bg-white p-8 rounded-2xl shadow-xl border-2 border-slate-200 mb-12 dark:bg-slate-900 dark:border-slate-700">
+          <h2 className="text-2xl font-bold mb-8 flex items-center gap-3">
+            <Users className="text-blue-600" /> {t.students}
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b-2 border-slate-100 dark:border-slate-800">
+                  <th className="py-4 px-4 font-bold text-slate-500 uppercase tracking-wider">{t.studentName}</th>
+                  <th className="py-4 px-4 font-bold text-slate-500 uppercase tracking-wider">{t.studentId}</th>
+                  <th className="py-4 px-4 font-bold text-slate-500 uppercase tracking-wider">{t.progress}</th>
+                  <th className="py-4 px-4 font-bold text-slate-500 uppercase tracking-wider">{t.avgScore}</th>
+                  <th className="py-4 px-4 font-bold text-slate-500 uppercase tracking-wider">{t.finalExam}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {studentsProgress.map((student) => (
+                  <tr key={student.userId} className="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <td className="py-4 px-4">
+                      <p className="font-bold text-lg">{student.name}</p>
+                    </td>
+                    <td className="py-4 px-4">
+                      <p className="font-mono font-bold text-blue-600">{student.userId}</p>
+                      <p className="text-xs text-slate-400">{t.lastActive}: {student.lastActive?.toDate().toLocaleDateString()}</p>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden dark:bg-slate-800">
+                          <div 
+                            className="h-full bg-blue-600 transition-all duration-500" 
+                            style={{ width: `${(student.completedLessons / lessons.length) * 100}%` }}
+                          />
+                        </div>
+                        <span className="font-bold">{student.completedLessons}/{lessons.length}</span>
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className={`font-bold text-lg ${student.scores.length > 0 ? 'text-green-600' : 'text-slate-400'}`}>
+                        {student.scores.length > 0 
+                          ? Math.round((student.scores.reduce((a: number, b: number) => a + b, 0) / student.scores.length) * 100) + '%'
+                          : 'N/A'}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4">
+                      {student.finalExamAssigned ? (
+                        <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-bold dark:bg-green-900/30 dark:text-green-400">
+                          {t.assigned}
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleAssignFinalExam(student.userId)}
+                          disabled={loading}
+                          className="px-4 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 transition-all text-sm disabled:opacity-50"
+                        >
+                          {t.assignExam}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {studentsProgress.length === 0 && (
+              <div className="text-center py-12 text-slate-400 italic">
+                {t.noResults}
               </div>
-              <div className="text-center w-full">
-                <p className="text-sm text-slate-500 mb-4">
-                  {t.uploadLogo} (PNG/JPG, max 500KB)
-                </p>
-                <label className="w-full cursor-pointer inline-flex items-center justify-center gap-2 px-6 py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all disabled:opacity-50">
-                  {uploadingLogo ? <Loader2 className="animate-spin" /> : <Upload size={20} />}
-                  {uploadingLogo ? 'Uploading...' : t.uploadLogo}
-                  <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} disabled={uploadingLogo} />
-                </label>
-              </div>
-            </div>
+            )}
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
-      {/* Exam Management Section */}
-      <section className="bg-white p-8 rounded-2xl shadow-xl border-2 border-slate-200 mb-12 dark:bg-slate-900 dark:border-slate-700">
-        <div className="flex justify-between items-center mb-6">
-          <button 
-            onClick={() => setShowExamPanel(!showExamPanel)}
-            className="text-2xl font-bold flex items-center gap-3 rounded-lg hover:text-blue-600 transition-colors"
-          >
-            <Users className="text-blue-600" />
-            {t.examSystem}
-            {showExamPanel ? <ChevronUp /> : <ChevronDown />}
-          </button>
-        </div>
-
-        {showExamPanel && (
+      {activeTab === 'exams' && (
+        <section className="bg-white p-8 rounded-2xl shadow-xl border-2 border-slate-200 mb-12 dark:bg-slate-900 dark:border-slate-700">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <GraduationCap className="text-blue-600" /> {t.examSystem}
+            </h2>
+          </div>
           <div className="space-y-8">
             <div className="grid md:grid-cols-2 gap-8">
               <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-2xl border-2 border-blue-100 dark:border-blue-800">
@@ -762,44 +1067,60 @@ export const TeacherPanel: React.FC = () => {
               </div>
             </div>
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
-      <section className="bg-white p-8 rounded-2xl shadow-xl border-2 border-slate-200 mb-12 dark:bg-slate-900 dark:border-slate-700">
-        <div className="flex justify-between items-center mb-6">
-          <button 
-            onClick={() => {
-              console.log("Toggling add form from", showAddForm, "to", !showAddForm);
-              setShowAddForm(!showAddForm);
-            }}
-            className="text-2xl font-bold flex items-center gap-3 rounded-lg hover:text-blue-600 transition-colors"
-          >
-            {editingId ? <Edit3 className="text-blue-600" /> : <Plus className="text-blue-600" />}
-            {editingId ? t.editLesson : t.addLesson}
-            {showAddForm ? <ChevronUp /> : <ChevronDown />}
-          </button>
-          <div className="flex gap-2">
+      {activeTab === 'lessons' && (
+        <>
+          <div className="mb-8 flex flex-wrap gap-4">
             <button
-              onClick={handleRestoreDefaults}
-              disabled={loading}
-              className="px-4 py-2 bg-purple-50 text-purple-600 rounded-xl font-bold hover:bg-purple-100 dark:bg-purple-900/20 dark:text-purple-400 flex items-center gap-2"
-              title="Restore missing default lessons"
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-3 shadow-lg"
             >
-              <Sparkles size={18} /> Restore Defaults
+              <Plus size={24} /> {t.addLesson}
             </button>
-            {editingId && (
-              <button 
-                onClick={cancelEdit}
-                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-                aria-label={t.cancel}
-              >
-                <X size={24} />
-              </button>
-            )}
+            <button
+              onClick={handleSeedAILessons}
+              disabled={seedingLessons}
+              className="flex-1 py-4 bg-purple-600 text-white rounded-2xl font-bold hover:bg-purple-700 transition-all flex items-center justify-center gap-3 shadow-lg disabled:opacity-50"
+            >
+              {seedingLessons ? <Loader2 className="animate-spin" /> : <BrainCircuit size={24} />}
+              {language === 'en' ? 'Generate AI Lessons' : 'AI പാഠങ്ങൾ നിർമ്മിക്കുക'}
+            </button>
           </div>
-        </div>
-        
-        {showAddForm && (
+
+          <section className="bg-white p-8 rounded-2xl shadow-xl border-2 border-slate-200 mb-12 dark:bg-slate-900 dark:border-slate-700">
+            <div className="flex justify-between items-center mb-6">
+              <button 
+                onClick={() => setShowAddForm(!showAddForm)}
+                className="text-2xl font-bold flex items-center gap-3 rounded-lg hover:text-blue-600 transition-colors"
+              >
+                {editingId ? <Edit3 className="text-blue-600" /> : <Plus className="text-blue-600" />}
+                {editingId ? t.editLesson : t.addLesson}
+                {showAddForm ? <ChevronUp /> : <ChevronDown />}
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleRestoreDefaults}
+                  disabled={loading}
+                  className="px-4 py-2 bg-purple-50 text-purple-600 rounded-xl font-bold hover:bg-purple-100 dark:bg-purple-900/20 dark:text-purple-400 flex items-center gap-2"
+                  title="Restore missing default lessons"
+                >
+                  <Sparkles size={18} /> Restore Defaults
+                </button>
+                {editingId && (
+                  <button 
+                    onClick={cancelEdit}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                    aria-label={t.cancel}
+                  >
+                    <X size={24} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {showAddForm && (
           <form onSubmit={handleSaveLesson} className="grid gap-6">
             <div className="grid md:grid-cols-2 gap-6">
             <div>
@@ -1088,6 +1409,21 @@ export const TeacherPanel: React.FC = () => {
           {t.existingLessons}
         </h2>
         <div className="grid gap-4">
+          {lessons.length === 0 && !loading && (
+            <div className="text-center py-12 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 dark:bg-slate-800/50 dark:border-slate-700">
+              <BrainCircuit size={64} className="mx-auto text-slate-300 mb-4" />
+              <h3 className="text-2xl font-bold text-slate-600 dark:text-slate-400 mb-2">No Lessons Yet</h3>
+              <p className="text-slate-500 mb-6">Start by adding a lesson manually or use AI to generate initial content.</p>
+              <button
+                onClick={handleSeedAILessons}
+                disabled={seedingLessons}
+                className="px-8 py-4 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-all flex items-center gap-2 mx-auto disabled:opacity-50 shadow-lg"
+              >
+                {seedingLessons ? <Loader2 className="animate-spin" /> : <Sparkles size={20} />}
+                {language === 'en' ? 'Initialize with AI Lessons' : 'AI പാഠങ്ങൾ ഉപയോഗിച്ച് തുടങ്ങുക'}
+              </button>
+            </div>
+          )}
           {lessons.map((lesson) => (
             <div key={lesson.id} className="bg-white p-6 rounded-2xl border-2 border-slate-200 flex flex-col gap-4 dark:bg-slate-900 dark:border-slate-800">
               <div className="flex justify-between items-start">
@@ -1127,6 +1463,8 @@ export const TeacherPanel: React.FC = () => {
           ))}
         </div>
       </section>
+    </>
+  )}
 
       {confirmDelete && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">

@@ -50,5 +50,10 @@ service cloud.firestore {
       allow read: if isTeacher();
       allow create: if true;
     }
+
+    match /registration_requests/{requestId} {
+      allow create: if true;
+      allow read, update, delete: if isTeacher();
+    }
   }
 }
