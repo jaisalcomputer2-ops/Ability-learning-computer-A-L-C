@@ -95,6 +95,7 @@
     "/quizzes/{quizId}": { "schema": "Quiz", "description": "Quizzes for lessons." },
     "/progress/{progressId}": { "schema": "Progress", "description": "Student progress tracking." },
     "/exam_codes/{codeId}": { "schema": "ExamCode", "description": "Generated exam codes." },
-    "/exam_results/{resultId}": { "schema": "ExamResult", "description": "Exam results." }
+    "/exam_results/{resultId}": { "schema": "ExamResult", "description": "Exam results." },
+    "/registration_requests/{requestId}": { "schema": "object", "description": "Pending registration requests." }
   }
 }

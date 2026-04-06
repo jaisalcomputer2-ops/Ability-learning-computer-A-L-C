@@ -4,7 +4,7 @@ import { auth, db } from './firebase';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, Timestamp, onSnapshot, getDocFromServer } from 'firebase/firestore';
 import { Toaster } from 'react-hot-toast';
-import { LogIn, LogOut, User, Settings, Accessibility, Sun, Moon, Languages, ShieldCheck, X } from 'lucide-react';
+import { LogIn, LogOut, User, Settings, Accessibility, Sun, Moon, Languages, ShieldCheck, X, GraduationCap } from 'lucide-react';
 import { A11yProvider, useA11y } from './components/A11yProvider';
 import { handleKey } from './lib/utils';
 import { seedLessons } from './lib/seedData';
@@ -186,7 +186,11 @@ const AppContent: React.FC = () => {
         announce(`${t.login} ${firebaseUser.displayName || firebaseUser.email}`);
       } else {
         setUser(null);
-        setRole(null);
+        // Only clear role if there's no student session in localStorage
+        const savedStudent = localStorage.getItem('student_session');
+        if (!savedStudent) {
+          setRole(null);
+        }
       }
       setLoading(false);
     });
@@ -253,6 +257,13 @@ const AppContent: React.FC = () => {
             </Link>
 
             <div className="flex items-center gap-2 sm:gap-4">
+              <Link
+                to="/"
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                className="p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 font-bold hidden sm:block"
+              >
+                {language === 'en' ? 'Home' : 'ഹോം'}
+              </Link>
               <button
                 onClick={toggleLanguage}
                 onKeyDown={handleKey}
@@ -287,9 +298,11 @@ const AppContent: React.FC = () => {
                 <Accessibility />
               </button>
 
-              {user ? (
+              {user || studentUser ? (
                 <div className="flex items-center gap-4">
-                  <span className="hidden md:block font-bold text-lg outline-none focus:ring-2 focus:ring-blue-400 rounded" tabIndex={0}>{user.displayName || user.email}</span>
+                  <span className="hidden md:block font-bold text-lg outline-none focus:ring-2 focus:ring-blue-400 rounded" tabIndex={0}>
+                    {user ? (user.displayName || user.email) : studentUser.name}
+                  </span>
                   <button
                     onClick={handleLogout}
                     onKeyDown={handleKey}
@@ -319,21 +332,8 @@ const AppContent: React.FC = () => {
           ) : role === 'student' ? (
             <StudentDashboard studentUser={studentUser} />
           ) : (
-            <div className="max-w-4xl mx-auto px-4">
-              <div className="mb-12">
-                <LandingPage />
-              </div>
-              <div className="bg-blue-50 dark:bg-blue-900/10 p-8 rounded-3xl border-2 border-blue-100 dark:border-blue-900/30 mb-12 text-center">
-                <h2 className="text-3xl font-black text-blue-800 dark:text-blue-300 mb-4">
-                  {language === 'en' ? 'Student Access Required' : 'വിദ്യാർത്ഥികൾക്ക് പ്രവേശനം ആവശ്യമാണ്'}
-                </h2>
-                <p className="text-xl text-slate-600 dark:text-slate-400 mb-8">
-                  {language === 'en' 
-                    ? 'Please login with your Register ID to access the lessons and exams.' 
-                    : 'പാഠഭാഗങ്ങളും പരീക്ഷകളും കാണുന്നതിനായി നിങ്ങളുടെ രജിസ്റ്റർ ID ഉപയോഗിച്ച് ലോഗിൻ ചെയ്യുക.'}
-                </p>
-                <StudentAuth onLogin={handleStudentLogin} />
-              </div>
+            <div className="max-w-7xl mx-auto px-4">
+              <LandingPage onStudentLogin={handleStudentLogin} />
             </div>
           )}
         </main>

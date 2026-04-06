@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, auth, storage } from '../firebase';
 import { collection, addDoc, query, onSnapshot, deleteDoc, doc, updateDoc, Timestamp, orderBy, where, getDocs, setDoc, getDocFromServer } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, uploadBytes } from 'firebase/storage';
-import { Plus, Trash2, BookOpen, Music, HelpCircle, Save, AlertTriangle, Edit3, X, BrainCircuit, Sparkles, Loader2, Image as ImageIcon, ChevronDown, ChevronUp, Settings, Type as TypeIcon, Upload, Key, Users, ClipboardCheck, Info, FileAudio, GraduationCap } from 'lucide-react';
+import { Plus, Trash2, BookOpen, Music, HelpCircle, Save, AlertTriangle, Edit3, X, BrainCircuit, Sparkles, Loader2, Image as ImageIcon, ChevronDown, ChevronUp, Settings, Type as TypeIcon, Upload, Key, Users, ClipboardCheck, Info, FileAudio, GraduationCap, Phone, Copy, Keyboard } from 'lucide-react';
 import { useA11y } from './A11yProvider';
 import { handleKey, getDirectAudioUrl, isYouTubeUrl } from '../lib/utils';
 import { GoogleGenAI, Type } from "@google/genai";
@@ -92,8 +92,13 @@ export const TeacherPanel: React.FC = () => {
   const [testingConnection, setTestingConnection] = useState(false);
   const [studentsProgress, setStudentsProgress] = useState<any[]>([]);
   const [registrationRequests, setRegistrationRequests] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'lessons' | 'exams' | 'students' | 'requests' | 'settings'>('lessons');
+  const [activeTab, setActiveTab] = useState<'lessons' | 'exams' | 'students' | 'requests' | 'settings' | 'spelling'>('lessons');
   const [seedingLessons, setSeedingLessons] = useState(false);
+  const [aiExamInput, setAiExamInput] = useState('');
+  const [generatingAIExam, setGeneratingAIExam] = useState(false);
+  const [spellingCategories, setSpellingCategories] = useState<any[]>([]);
+  const [newSpellingCategory, setNewSpellingCategory] = useState('');
+  const [generatingSpellingWords, setGeneratingSpellingWords] = useState(false);
 
   const testFirebaseConnection = async () => {
     if (!auth.currentUser) {
@@ -219,26 +224,40 @@ export const TeacherPanel: React.FC = () => {
   useEffect(() => {
     const qProgress = query(collection(db, 'progress'));
     const unsubscribeProgress = onSnapshot(qProgress, (snapshot) => {
+      // Initialize map with ALL students from usersMap first
       const studentMap: Record<string, any> = {};
+      
+      Object.keys(usersMap).forEach(userId => {
+        studentMap[userId] = {
+          userId: userId,
+          name: usersMap[userId]?.name || 'Student',
+          completedLessons: 0,
+          scores: [],
+          finalExamAssigned: usersMap[userId]?.finalExamAssigned || false,
+          lastActive: usersMap[userId]?.createdAt || null
+        };
+      });
+
+      // Then update with actual progress data
       snapshot.docs.forEach(doc => {
         const data = doc.data();
-        if (!studentMap[data.userId]) {
-          studentMap[data.userId] = {
-            userId: data.userId,
-            name: usersMap[data.userId]?.name || 'Student',
-            completedLessons: 0,
-            scores: [],
-            finalExamAssigned: false,
-            lastActive: data.updatedAt
-          };
-        }
-        if (data.completed) studentMap[data.userId].completedLessons++;
-        if (data.score !== undefined) studentMap[data.userId].scores.push(data.score / (data.totalQuestions || 1));
-        if (data.finalExamAssigned) studentMap[data.userId].finalExamAssigned = true;
-        if (data.updatedAt?.toMillis() > (studentMap[data.userId].lastActive?.toMillis() || 0)) {
-          studentMap[data.userId].lastActive = data.updatedAt;
+        if (studentMap[data.userId]) {
+          if (data.completed) {
+            studentMap[data.userId].completedLessons++;
+          }
+          if (data.score !== undefined && data.totalQuestions) {
+            studentMap[data.userId].scores.push(data.score / data.totalQuestions);
+          }
+          // Use the most recent update time
+          if (data.updatedAt) {
+            const currentLastActive = studentMap[data.userId].lastActive;
+            if (!currentLastActive || data.updatedAt.toMillis() > currentLastActive.toMillis()) {
+              studentMap[data.userId].lastActive = data.updatedAt;
+            }
+          }
         }
       });
+      
       setStudentsProgress(Object.values(studentMap));
     });
 
@@ -249,6 +268,14 @@ export const TeacherPanel: React.FC = () => {
     const q = query(collection(db, 'registration_requests'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setRegistrationRequests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const q = query(collection(db, 'spelling_categories'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setSpellingCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
     return () => unsubscribe();
   }, []);
@@ -391,6 +418,111 @@ export const TeacherPanel: React.FC = () => {
       toast.success(t.delete);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'exam_codes');
+    }
+  };
+
+  const handleAIGenerateExam = async () => {
+    if (!aiExamInput.trim()) {
+      toast.error(t.pasteQuestions);
+      return;
+    }
+
+    setGeneratingAIExam(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Convert the following text into a structured JSON array of quiz questions. 
+        Each question should have: "question" (string), "options" (array of 3 strings), and "correctAnswer" (index 0-2).
+        Text: ${aiExamInput}`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                question: { type: Type.STRING },
+                options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                correctAnswer: { type: Type.INTEGER }
+              },
+              required: ["question", "options", "correctAnswer"]
+            }
+          }
+        }
+      });
+
+      const generatedQuestions = JSON.parse(response.text);
+      setQuizQuestions(generatedQuestions);
+      toast.success(language === 'en' ? 'Exam questions generated!' : 'പരീക്ഷാ ചോദ്യങ്ങൾ നിർമ്മിച്ചു!');
+      setAiExamInput('');
+    } catch (error) {
+      console.error("AI Generation Error:", error);
+      toast.error("Failed to generate exam questions");
+    } finally {
+      setGeneratingAIExam(false);
+    }
+  };
+
+  const shareViaWhatsApp = (res: any) => {
+    const text = `Exam Result for ${res.studentName}\nScore: ${res.score}/${res.total}\nDate: ${res.timestamp?.toDate().toLocaleString()}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const shareViaEmail = (res: any) => {
+    const subject = `Exam Result: ${res.studentName}`;
+    const body = `Student Name: ${res.studentName}\nScore: ${res.score}/${res.total}\nDate: ${res.timestamp?.toDate().toLocaleString()}`;
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
+  const handleAIGenerateSpellingWords = async () => {
+    if (!newSpellingCategory.trim()) {
+      toast.error(t.categoryName);
+      return;
+    }
+
+    setGeneratingSpellingWords(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Generate 10 English words for the category: "${newSpellingCategory}". 
+        Return only a JSON array of strings. 
+        Example: ["Apple", "Banana", "Cherry"]`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING }
+          }
+        }
+      });
+
+      const words = JSON.parse(response.text);
+      
+      await addDoc(collection(db, 'spelling_categories'), {
+        name: newSpellingCategory,
+        words,
+        createdAt: Timestamp.now()
+      });
+
+      toast.success(language === 'en' ? 'Category added with 10 words!' : '10 വാക്കുകളുമായി വിഭാഗം ചേർത്തു!');
+      setNewSpellingCategory('');
+    } catch (error) {
+      console.error("AI Spelling Generation Error:", error);
+      toast.error("Failed to generate words");
+    } finally {
+      setGeneratingSpellingWords(false);
+    }
+  };
+
+  const handleDeleteSpellingCategory = async (id: string) => {
+    if (!window.confirm(t.confirm)) return;
+    try {
+      await deleteDoc(doc(db, 'spelling_categories', id));
+      toast.success(t.delete);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `spelling_categories/${id}`);
     }
   };
 
@@ -702,13 +834,13 @@ export const TeacherPanel: React.FC = () => {
   const handleApproveRequest = async (request: any) => {
     setLoading(true);
     try {
-      const registerId = "ACL-" + Math.floor(1000 + Math.random() * 9000);
+      const registerId = request.registerId || ("ACL-" + Math.floor(1000 + Math.random() * 9000));
       
       // Create user document
       await setDoc(doc(db, 'users', registerId), {
         registerId,
         name: request.name,
-        email: request.email,
+        phone: request.phone,
         age: request.age,
         role: 'student',
         createdAt: Timestamp.now(),
@@ -726,6 +858,18 @@ export const TeacherPanel: React.FC = () => {
       announce(`Approved student ${request.name}. Register ID is ${registerId}`);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `registration_requests/${request.id}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRejectRequest = async (id: string) => {
+    setLoading(true);
+    try {
+      await deleteDoc(doc(db, 'registration_requests', id));
+      toast.success('Request rejected');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `registration_requests/${id}`);
     } finally {
       setLoading(false);
     }
@@ -849,12 +993,136 @@ export const TeacherPanel: React.FC = () => {
           <ClipboardCheck size={20} /> {t.registrationRequests}
         </button>
         <button
+          onClick={() => setActiveTab('spelling')}
+          className={`flex-1 py-3 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'spelling' ? 'bg-white text-blue-600 shadow-md dark:bg-slate-900' : 'text-slate-500 hover:bg-white/50 dark:hover:bg-slate-800'}`}
+        >
+          <Keyboard size={20} /> {t.spellingManagement}
+        </button>
+        <button
           onClick={() => setActiveTab('settings')}
           className={`flex-1 py-3 px-6 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'settings' ? 'bg-white text-blue-600 shadow-md dark:bg-slate-900' : 'text-slate-500 hover:bg-white/50 dark:hover:bg-slate-800'}`}
         >
           <Settings size={20} /> {t.logoSettings}
         </button>
       </div>
+
+      {activeTab === 'spelling' && (
+        <section className="bg-white p-8 rounded-2xl shadow-xl border-2 border-slate-200 mb-12 dark:bg-slate-900 dark:border-slate-700">
+          <h2 className="text-2xl font-bold mb-8 flex items-center gap-3">
+            <Keyboard className="text-blue-600" /> {t.spellingManagement}
+          </h2>
+
+          <div className="bg-slate-50 p-6 rounded-2xl border-2 border-slate-100 dark:bg-slate-800/50 dark:border-slate-800 mb-8">
+            <h3 className="text-xl font-bold mb-4">{t.addSpellingCategory}</h3>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <input
+                type="text"
+                value={newSpellingCategory}
+                onChange={(e) => setNewSpellingCategory(e.target.value)}
+                placeholder={t.categoryName}
+                className="flex-1 p-4 bg-white border-2 border-slate-200 rounded-xl focus:border-blue-500 outline-none dark:bg-slate-900 dark:border-slate-700"
+              />
+              <button
+                onClick={handleAIGenerateSpellingWords}
+                disabled={generatingSpellingWords}
+                className="px-8 py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {generatingSpellingWords ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <Sparkles size={20} />
+                )}
+                {t.generate10Words}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-6">
+            {spellingCategories.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 italic">
+                No custom categories added
+              </div>
+            ) : (
+              spellingCategories.map((cat) => (
+                <div key={cat.id} className="bg-slate-50 p-6 rounded-2xl border-2 border-slate-100 dark:bg-slate-800/50 dark:border-slate-800 flex flex-wrap justify-between items-center gap-4">
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold">{cat.name}</h3>
+                    <p className="text-slate-500 mt-1">
+                      {cat.words?.length || 0} {t.words}: {cat.words?.join(', ')}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteSpellingCategory(cat.id)}
+                    className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-all"
+                    title={t.deleteCategory}
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      )}
+
+      {activeTab === 'requests' && (
+        <section className="bg-white p-8 rounded-2xl shadow-xl border-2 border-slate-200 mb-12 dark:bg-slate-900 dark:border-slate-700">
+          <h2 className="text-2xl font-bold mb-8 flex items-center gap-3">
+            <ClipboardCheck className="text-blue-600" /> {t.registrationRequests}
+          </h2>
+          <div className="grid gap-6">
+            {registrationRequests.filter(r => r.status === 'pending').length === 0 ? (
+              <div className="text-center py-12 text-slate-400 italic">
+                No pending requests
+              </div>
+            ) : (
+              registrationRequests.filter(r => r.status === 'pending').map((request) => (
+                <div key={request.id} className="bg-slate-50 p-6 rounded-2xl border-2 border-slate-100 dark:bg-slate-800/50 dark:border-slate-800 flex flex-wrap justify-between items-center gap-4">
+                  <div className="flex-1 min-w-[200px]">
+                    <h3 className="text-xl font-bold">{request.name}</h3>
+                    <div className="flex flex-wrap gap-4 mt-2 text-slate-500 font-bold">
+                      <p className="flex items-center gap-1"><Info size={16} /> {t.age}: {request.age}</p>
+                      <p className="flex items-center gap-1"><Phone size={16} /> {t.phone}: {request.phone}</p>
+                      {request.registerId && (
+                        <div className="flex items-center gap-2">
+                          <p className="flex items-center gap-1 text-blue-600"><Key size={16} /> ID: {request.registerId}</p>
+                          <button 
+                            onClick={() => {
+                              navigator.clipboard.writeText(request.registerId);
+                              toast.success('Copied!');
+                            }}
+                            className="p-1 hover:bg-blue-100 rounded-md text-blue-600 transition-colors"
+                            title="Copy ID"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-2">Requested: {request.createdAt?.toDate().toLocaleString()}</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => handleApproveRequest(request)}
+                      disabled={loading}
+                      className="px-6 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <ClipboardCheck size={20} /> {t.approve}
+                    </button>
+                    <button
+                      onClick={() => handleRejectRequest(request.id)}
+                      disabled={loading}
+                      className="px-6 py-3 bg-red-50 text-red-600 border-2 border-red-100 rounded-xl font-bold hover:bg-red-100 transition-all flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <Trash2 size={20} /> {t.delete}
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      )}
 
       {activeTab === 'settings' && (
         <section className="bg-white p-8 rounded-2xl shadow-xl border-2 border-slate-200 mb-12 dark:bg-slate-900 dark:border-slate-700">
@@ -939,7 +1207,19 @@ export const TeacherPanel: React.FC = () => {
                       <p className="font-bold text-lg">{student.name}</p>
                     </td>
                     <td className="py-4 px-4">
-                      <p className="font-mono font-bold text-blue-600">{student.userId}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-mono font-bold text-blue-600">{student.userId}</p>
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText(student.userId);
+                            toast.success('Copied!');
+                          }}
+                          className="p-1 hover:bg-blue-100 rounded-md text-blue-600 transition-colors"
+                          title="Copy ID"
+                        >
+                          <Copy size={14} />
+                        </button>
+                      </div>
                       <p className="text-xs text-slate-400">{t.lastActive}: {student.lastActive?.toDate().toLocaleDateString()}</p>
                     </td>
                     <td className="py-4 px-4">
@@ -981,7 +1261,7 @@ export const TeacherPanel: React.FC = () => {
             </table>
             {studentsProgress.length === 0 && (
               <div className="text-center py-12 text-slate-400 italic">
-                {t.noResults}
+                {language === 'en' ? 'No students found' : 'വിദ്യാർത്ഥികളെ കണ്ടെത്തിയില്ല'}
               </div>
             )}
           </div>
@@ -1029,22 +1309,63 @@ export const TeacherPanel: React.FC = () => {
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                   <ClipboardCheck className="text-purple-600" /> {t.viewResults}
                 </h3>
-                <div className="max-h-60 overflow-y-auto space-y-2">
+                <div className="max-h-96 overflow-y-auto space-y-4">
                   {examResults.length === 0 ? (
                     <p className="text-slate-500 italic">{t.noResults}</p>
                   ) : (
                     examResults.map((res) => (
-                      <div key={res.id} className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-purple-200 dark:border-purple-700 flex justify-between items-center">
-                        <div>
-                          <p className="font-bold">{res.studentName}</p>
-                          <p className="text-xs text-slate-500">{res.timestamp?.toDate().toLocaleString()}</p>
+                      <div key={res.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-purple-200 dark:border-purple-700">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <p className="font-bold text-lg">{res.studentName}</p>
+                            <p className="text-xs text-slate-500">{res.timestamp?.toDate().toLocaleString()}</p>
+                          </div>
+                          <p className="text-2xl font-black text-purple-600">{res.score}/{res.total}</p>
                         </div>
-                        <p className="text-xl font-black text-purple-600">{res.score}/{res.total}</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => shareViaWhatsApp(res)}
+                            className="flex-1 py-2 bg-green-500 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 hover:bg-green-600 transition-colors"
+                          >
+                            <Phone size={16} /> {t.sendViaWhatsApp}
+                          </button>
+                          <button
+                            onClick={() => shareViaEmail(res)}
+                            className="flex-1 py-2 bg-blue-500 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 hover:bg-blue-600 transition-colors"
+                          >
+                            <BookOpen size={16} /> {t.sendViaEmail}
+                          </button>
+                        </div>
                       </div>
                     ))
                   )}
                 </div>
               </div>
+            </div>
+
+            <div className="bg-indigo-50 dark:bg-indigo-900/20 p-8 rounded-2xl border-2 border-indigo-100 dark:border-indigo-800">
+              <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
+                <BrainCircuit className="text-indigo-600" /> {t.aiGenerateExam}
+              </h3>
+              <p className="text-slate-600 dark:text-slate-400 mb-6">
+                {language === 'en' 
+                  ? 'Paste your questions and answers below, and AI will automatically format them into exam questions.' 
+                  : 'ചോദ്യങ്ങളും ഉത്തരങ്ങളും താഴെ പേസ്റ്റ് ചെയ്യുക, AI അവയെ പരീക്ഷാ ചോദ്യങ്ങളായി മാറ്റും.'}
+              </p>
+              <textarea
+                value={aiExamInput}
+                onChange={(e) => setAiExamInput(e.target.value)}
+                placeholder={t.pasteQuestions}
+                className="w-full h-48 p-6 rounded-2xl border-2 border-slate-200 focus:ring-4 focus:ring-indigo-400 outline-none dark:bg-slate-800 dark:border-slate-700 mb-6 text-lg"
+              />
+              <button
+                onClick={handleAIGenerateExam}
+                disabled={generatingAIExam}
+                className="w-full py-5 bg-indigo-600 text-white rounded-2xl text-xl font-black hover:bg-indigo-700 transition-all shadow-xl flex items-center justify-center gap-3 disabled:opacity-50"
+              >
+                {generatingAIExam ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                {t.aiGenerateExam}
+              </button>
             </div>
 
             <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl border-2 border-slate-100 dark:border-slate-800">

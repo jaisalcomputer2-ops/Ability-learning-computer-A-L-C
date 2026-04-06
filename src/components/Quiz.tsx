@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Howl } from 'howler';
-import { CheckCircle, XCircle, RotateCcw, Trophy, ArrowLeft } from 'lucide-react';
+import { CheckCircle, XCircle, RotateCcw, Trophy, ArrowLeft, Phone, Send } from 'lucide-react';
 import { useA11y } from './A11yProvider';
 import { handleKey, cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -14,9 +14,10 @@ interface Question {
 interface QuizProps {
   questions: Question[];
   onComplete?: (score: number) => void;
+  studentName?: string;
 }
 
-export const Quiz: React.FC<QuizProps> = ({ questions, onComplete }) => {
+export const Quiz: React.FC<QuizProps> = ({ questions, onComplete, studentName = 'Student' }) => {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [score, setScore] = useState(0);
   const [showResult, setShowResult] = useState(false);
@@ -141,6 +142,29 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete }) => {
         )}>
           {score < 3 ? t.practiceNeeded : t.goodJob}
         </p>
+
+        <div className="grid sm:grid-cols-2 gap-4 mb-8">
+          <button
+            onClick={() => {
+              const text = `Quiz Result for ${studentName}\nScore: ${score}/${questions.length}\nDate: ${new Date().toLocaleString()}`;
+              window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+            }}
+            className="w-full py-4 bg-green-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-green-600 transition-all shadow-lg"
+          >
+            <Phone size={20} /> {t.sendViaWhatsApp}
+          </button>
+          <button
+            onClick={() => {
+              const subject = `Quiz Result: ${studentName}`;
+              const body = `Student Name: ${studentName}\nScore: ${score}/${questions.length}\nDate: ${new Date().toLocaleString()}`;
+              window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+            }}
+            className="w-full py-4 bg-blue-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-blue-600 transition-all shadow-lg"
+          >
+            <Send size={20} /> {t.sendViaEmail}
+          </button>
+        </div>
+
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <button
             onClick={resetQuiz}

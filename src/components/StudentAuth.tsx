@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { db } from '../firebase';
-import { collection, addDoc, query, where, getDocs, Timestamp } from 'firebase/firestore';
-import { UserPlus, LogIn, User, Mail, Calendar, Key, Loader2 } from 'lucide-react';
+import { collection, addDoc, query, where, getDocs, Timestamp, setDoc, doc } from 'firebase/firestore';
+import { UserPlus, LogIn, User, Phone, Calendar, Key, Loader2 } from 'lucide-react';
 import { useA11y } from './A11yProvider';
 import toast from 'react-hot-toast';
 
@@ -29,21 +29,29 @@ export const StudentAuth: React.FC<StudentAuthProps> = ({ onLogin }) => {
 
     setLoading(true);
     try {
-      await addDoc(collection(db, 'registration_requests'), {
+      console.log("Attempting registration with data:", { name, phone, age });
+      const generatedId = "ACL-" + Math.floor(1000 + Math.random() * 9000);
+      const requestId = "REQ-" + Date.now() + "-" + Math.floor(Math.random() * 1000);
+      
+      await setDoc(doc(db, 'registration_requests', requestId), {
+        id: requestId,
         name,
         phone,
         age,
+        registerId: generatedId,
         status: 'pending',
         createdAt: Timestamp.now()
       });
-      toast.success(t.registerRequestSent);
+      
+      console.log("Registration successful, request ID:", requestId);
+      toast.success(`${t.registerRequestSent} (Your ID will be ${generatedId})`);
       setMode('login');
       setName('');
       setPhone('');
       setAge('');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Registration Error:", error);
-      toast.error('Registration failed');
+      toast.error(`Registration failed: ${error.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -60,15 +68,19 @@ export const StudentAuth: React.FC<StudentAuthProps> = ({ onLogin }) => {
     try {
       const q = query(
         collection(db, 'users'), 
-        where('name', '==', name),
         where('registerId', '==', registerId.trim().toUpperCase())
       );
       const snapshot = await getDocs(q);
       
       if (!snapshot.empty) {
         const studentData = snapshot.docs[0].data();
-        onLogin({ id: snapshot.docs[0].id, ...studentData });
-        toast.success(t.loginSuccess);
+        // Case-insensitive name check
+        if (studentData.name.trim().toLowerCase() === name.trim().toLowerCase()) {
+          onLogin({ id: snapshot.docs[0].id, ...studentData });
+          toast.success(t.loginSuccess);
+        } else {
+          toast.error(t.invalidRegisterId);
+        }
       } else {
         toast.error(t.invalidRegisterId);
       }
@@ -81,7 +93,7 @@ export const StudentAuth: React.FC<StudentAuthProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="max-w-md mx-auto p-8 bg-white rounded-3xl shadow-2xl border-2 border-slate-200 dark:bg-slate-900 dark:border-slate-800">
+    <div className="max-w-md mx-auto">
       <div className="text-center mb-8">
         <div className="inline-flex p-4 bg-blue-100 rounded-2xl text-blue-600 mb-4 dark:bg-blue-900/30">
           {mode === 'login' ? <LogIn size={40} /> : <UserPlus size={40} />}
@@ -110,7 +122,7 @@ export const StudentAuth: React.FC<StudentAuthProps> = ({ onLogin }) => {
           <>
             <div>
               <label className="block text-lg font-bold mb-2 flex items-center gap-2">
-                <Mail size={20} className="text-blue-600" /> {t.email}
+                <Phone size={20} className="text-blue-600" /> {t.phone}
               </label>
               <input
                 type="tel"

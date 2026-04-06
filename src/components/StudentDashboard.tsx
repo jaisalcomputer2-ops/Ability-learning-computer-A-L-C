@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../firebase';
 import { collection, query, onSnapshot, where, doc, getDoc, setDoc, Timestamp, orderBy } from 'firebase/firestore';
-import { BookOpen, PlayCircle, CheckCircle, ChevronRight, ArrowLeft, Headphones, FileText, BrainCircuit, Accessibility, GraduationCap, Award } from 'lucide-react';
+import { BookOpen, PlayCircle, CheckCircle, ChevronRight, ArrowLeft, Headphones, FileText, BrainCircuit, Accessibility, GraduationCap, Award, Keyboard, Zap } from 'lucide-react';
 import { AudioPlayer } from './AudioPlayer';
 import { Quiz } from './Quiz';
-import { LandingPage } from './LandingPage';
 import { ExamSystem } from './ExamSystem';
+import { SpellingPractice } from './SpellingPractice';
+import { PracticalGames } from './PracticalGames';
 import { useA11y } from './A11yProvider';
 import { handleKey, getDirectAudioUrl } from '../lib/utils';
 import toast from 'react-hot-toast';
@@ -20,7 +21,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentUser 
   const [quiz, setQuiz] = useState<any>(null);
   const [progress, setProgress] = useState<any>(null);
   const [allProgress, setAllProgress] = useState<Record<string, any>>({});
-  const [view, setView] = useState<'list' | 'lesson' | 'quiz' | 'exam'>('list');
+  const [view, setView] = useState<'list' | 'lesson' | 'quiz' | 'exam' | 'spelling' | 'practical'>('list');
   const [finalExamAssigned, setFinalExamAssigned] = useState(false);
   const { announce, t, language } = useA11y();
   
@@ -48,7 +49,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentUser 
     window.history.back();
   };
 
-  const navigateTo = (newView: 'list' | 'lesson' | 'quiz' | 'exam', lesson?: any) => {
+  const navigateTo = (newView: 'list' | 'lesson' | 'quiz' | 'exam' | 'spelling' | 'practical', lesson?: any) => {
     setView(newView);
     if (lesson) setSelectedLesson(lesson);
     window.history.pushState({ view: newView, lesson }, '');
@@ -62,6 +63,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentUser 
           announce(t.backToLessons);
         } else if (view === 'quiz') {
           setView('lesson');
+          announce(t.backToLessons);
+        } else if (view === 'spelling' || view === 'practical') {
+          setView('list');
           announce(t.backToLessons);
         }
       }
@@ -79,6 +83,14 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentUser 
     } else if (view === 'exam') {
       setTimeout(() => {
         announce(t.examInstructions);
+      }, 500);
+    } else if (view === 'spelling') {
+      setTimeout(() => {
+        announce(t.spellingPractice);
+      }, 500);
+    } else if (view === 'practical') {
+      setTimeout(() => {
+        announce(t.practicalGames);
       }, 500);
     }
   }, [view, selectedLesson?.id]);
@@ -329,6 +341,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentUser 
         </button>
         <Quiz 
           questions={quiz.questions} 
+          studentName={studentUser?.name}
           onComplete={(score) => {
             updateProgress({ 
               completed: true, 
@@ -336,6 +349,10 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentUser 
               totalQuestions: quiz.questions.length,
               lessonTitle: selectedLesson.title
             });
+            // We don't go back immediately if we want them to see the result and share buttons
+            // But the Quiz component has its own "Back to Lessons" button which calls onComplete
+            // Wait, Quiz.tsx calls onComplete when the user clicks "Back to Lessons" in the result screen.
+            // So we should only go back then.
             goBack();
           }}
         />
@@ -362,14 +379,58 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentUser 
     );
   }
 
+  if (view === 'spelling') {
+    return <SpellingPractice onBack={goBack} />;
+  }
+
+  if (view === 'practical') {
+    return <PracticalGames onBack={goBack} />;
+  }
+
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="mb-12">
-        <LandingPage />
+    <div className="max-w-5xl mx-auto px-4">
+      <div className="mb-12 bg-gradient-to-r from-blue-600 to-indigo-700 p-10 md:p-16 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 -mt-10 -mr-10 opacity-10">
+          <GraduationCap size={200} />
+        </div>
+        <div className="relative z-10">
+          <h1 className="text-4xl md:text-6xl font-black mb-4">{t.studentDashboard}</h1>
+          <p className="text-xl md:text-2xl text-blue-100 max-w-2xl leading-relaxed">
+            {language === 'en' 
+              ? `Welcome back, ${studentUser?.name || 'Student'}! Continue your learning journey.` 
+              : `സ്വാഗതം, ${studentUser?.name || 'വിദ്യാർത്ഥി'}! നിങ്ങളുടെ പഠനം തുടരുക.`}
+          </p>
+        </div>
       </div>
 
-      <h1 className="text-4xl font-bold mb-4 rounded-lg inline-block">{t.studentDashboard}</h1>
-      <p className="text-2xl text-slate-600 mb-8 dark:text-slate-400 outline-none focus:ring-2 focus:ring-blue-400 rounded">{t.description.split('.')[0]}.</p>
+      {/* New Practical & Spelling Sections */}
+      <div className="mb-12 grid grid-cols-1 md:grid-cols-2 gap-8">
+        <button
+          onClick={() => navigateTo('spelling')}
+          className="p-10 bg-white dark:bg-slate-900 rounded-[2.5rem] border-2 border-slate-100 dark:border-slate-800 shadow-xl hover:border-blue-500 transition-all text-left group"
+        >
+          <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600 mb-8 group-hover:scale-110 transition-transform">
+            <Keyboard size={40} />
+          </div>
+          <h2 className="text-3xl font-black mb-4 group-hover:text-blue-600">{t.spellingPractice}</h2>
+          <p className="text-lg text-slate-500 leading-relaxed">
+            {language === 'en' ? 'Practice spelling common words with audio feedback.' : 'ഓഡിയോ സഹായത്തോടെ വാക്കുകളുടെ സ്പെല്ലിംഗ് പരിശീലിക്കുക.'}
+          </p>
+        </button>
+
+        <button
+          onClick={() => navigateTo('practical')}
+          className="p-10 bg-white dark:bg-slate-900 rounded-[2.5rem] border-2 border-slate-100 dark:border-slate-800 shadow-xl hover:border-indigo-500 transition-all text-left group"
+        >
+          <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center text-indigo-600 mb-8 group-hover:scale-110 transition-transform">
+            <Zap size={40} />
+          </div>
+          <h2 className="text-3xl font-black mb-4 group-hover:text-indigo-600">{t.practicalGames}</h2>
+          <p className="text-lg text-slate-500 leading-relaxed">
+            {language === 'en' ? 'Fun keyboard games to improve your typing speed and accuracy.' : 'ടൈപ്പിംഗ് സ്പീഡും കൃത്യതയും മെച്ചപ്പെടുത്താൻ സഹായിക്കുന്ന ഗെയിമുകൾ.'}
+          </p>
+        </button>
+      </div>
 
       {/* Progress Summary Section */}
       <div className="mb-12 grid grid-cols-1 md:grid-cols-3 gap-6">

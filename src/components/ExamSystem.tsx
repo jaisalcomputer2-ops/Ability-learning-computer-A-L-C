@@ -3,7 +3,7 @@ import { db, auth } from '../firebase';
 import { collection, query, where, getDocs, addDoc, Timestamp, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { useA11y } from './A11yProvider';
 import toast from 'react-hot-toast';
-import { LogIn, Send, Award, Loader2, ClipboardList } from 'lucide-react';
+import { LogIn, Send, Award, Loader2, ClipboardList, Phone } from 'lucide-react';
 
 interface ExamSystemProps {
   studentUser?: any;
@@ -299,9 +299,32 @@ export const ExamSystem: React.FC<ExamSystemProps> = ({ studentUser }) => {
                   {score}<span className="text-3xl text-slate-300">/{questions.length}</span>
                 </p>
               </div>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <button
+                  onClick={() => {
+                    const text = `Exam Result for ${studentName}\nScore: ${score}/${questions.length}\nDate: ${new Date().toLocaleString()}`;
+                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                  }}
+                  className="w-full py-4 bg-green-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-green-600 transition-all shadow-lg"
+                >
+                  <Phone size={20} /> {t.sendViaWhatsApp}
+                </button>
+                <button
+                  onClick={() => {
+                    const subject = `Exam Result: ${studentName}`;
+                    const body = `Student Name: ${studentName}\nScore: ${score}/${questions.length}\nDate: ${new Date().toLocaleString()}`;
+                    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                  }}
+                  className="w-full py-4 bg-blue-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-blue-600 transition-all shadow-lg"
+                >
+                  <Send size={20} /> {t.sendViaEmail}
+                </button>
+              </div>
+
               <button
                 onClick={() => window.location.reload()}
-                className="px-8 py-4 bg-slate-100 dark:bg-slate-800 rounded-2xl font-bold hover:bg-slate-200 outline-none focus:ring-4 focus:ring-slate-400"
+                className="w-full py-4 bg-slate-100 dark:bg-slate-800 rounded-2xl font-bold hover:bg-slate-200 outline-none focus:ring-4 focus:ring-slate-400"
               >
                 {t.backToLessons}
               </button>
