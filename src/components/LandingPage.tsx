@@ -26,42 +26,64 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStudentLogin }) => {
     const loginSection = document.getElementById('student-login-section');
     if (loginSection) {
       loginSection.scrollIntoView({ behavior: 'smooth' });
+      // Move focus to the first input in the login section for better accessibility
+      const firstInput = loginSection.querySelector('input');
+      if (firstInput) {
+        (firstInput as HTMLElement).focus();
+      }
+    }
+  };
+
+  const scrollToMission = () => {
+    const missionSection = document.getElementById('mission-section');
+    if (missionSection) {
+      missionSection.scrollIntoView({ behavior: 'smooth' });
+      missionSection.focus();
     }
   };
 
   return (
     <div className="space-y-24 pb-20">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-[3rem] p-8 md:p-16 shadow-2xl">
+      <section 
+        aria-labelledby="hero-heading"
+        className="relative overflow-hidden bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-[3rem] p-8 md:p-16 shadow-2xl"
+      >
         <div className="absolute top-0 right-0 -mt-20 -mr-20 opacity-10 blur-3xl bg-white w-96 h-96 rounded-full"></div>
         <div className="absolute bottom-0 left-0 -mb-20 -ml-20 opacity-10 blur-3xl bg-blue-400 w-96 h-96 rounded-full"></div>
         
         <div className="relative z-10 flex flex-col lg:flex-row items-center gap-12">
           <div className="flex-1 text-center lg:text-left space-y-8">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 text-sm font-bold tracking-wider uppercase">
+            <div 
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 text-sm font-bold tracking-wider uppercase"
+              tabIndex={0}
+            >
               <Sparkles size={16} className="text-yellow-400" />
               {language === 'en' ? 'Empowering Vision through Technology' : 'സാങ്കേതികവിദ്യയിലൂടെ കാഴ്ചശക്തിയെ ശാക്തീകരിക്കുന്നു'}
             </div>
             
-            <h1 className="text-5xl md:text-7xl font-black leading-tight tracking-tight">
+            <h1 id="hero-heading" className="text-5xl md:text-7xl font-black leading-tight tracking-tight outline-none focus:ring-2 focus:ring-white/50 rounded" tabIndex={0}>
               {t.bannerTitle}
             </h1>
             
-            <p className="text-xl md:text-2xl text-blue-100 leading-relaxed max-w-2xl mx-auto lg:mx-0">
+            <p className="text-xl md:text-2xl text-blue-100 leading-relaxed max-w-2xl mx-auto lg:mx-0 outline-none focus:ring-2 focus:ring-white/50 rounded" tabIndex={0}>
               {t.bannerDescription}
             </p>
             
             <div className="flex flex-wrap justify-center lg:justify-start gap-4 pt-4">
               <button 
                 onClick={scrollToLogin}
-                className="px-8 py-4 bg-white text-blue-600 rounded-2xl text-xl font-bold hover:bg-blue-50 transition-all shadow-xl flex items-center gap-2 group"
+                className="px-8 py-4 bg-white text-blue-600 rounded-2xl text-xl font-bold hover:bg-blue-50 transition-all shadow-xl flex items-center gap-2 group outline-none focus:ring-4 focus:ring-white"
+                aria-label={t.studentLogin}
               >
                 <LogIn size={24} />
                 {t.studentLogin}
                 <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
               </button>
               <button 
-                className="px-8 py-4 bg-blue-500/20 backdrop-blur-md border-2 border-white/30 text-white rounded-2xl text-xl font-bold hover:bg-white/10 transition-all"
+                onClick={scrollToMission}
+                className="px-8 py-4 bg-blue-500/20 backdrop-blur-md border-2 border-white/30 text-white rounded-2xl text-xl font-bold hover:bg-white/10 transition-all outline-none focus:ring-4 focus:ring-white"
+                aria-label={language === 'en' ? 'Learn More' : 'കൂടുതൽ അറിയാൻ'}
               >
                 {language === 'en' ? 'Learn More' : 'കൂടുതൽ അറിയാൻ'}
               </button>
@@ -88,18 +110,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStudentLogin }) => {
       </section>
 
       {/* Main Info Section */}
-      <section className="text-center space-y-6 max-w-4xl mx-auto px-4">
-        <h2 className="text-4xl md:text-6xl font-black text-slate-900 dark:text-white leading-tight">
+      <section className="text-center space-y-6 max-w-4xl mx-auto px-4" aria-labelledby="landing-title">
+        <h2 id="landing-title" className="text-4xl md:text-6xl font-black text-slate-900 dark:text-white leading-tight outline-none focus:ring-2 focus:ring-blue-400 rounded" tabIndex={0}>
           {t.landingTitle}
         </h2>
-        <p className="text-xl md:text-2xl text-slate-600 dark:text-slate-400 leading-relaxed">
+        <p className="text-xl md:text-2xl text-slate-600 dark:text-slate-400 leading-relaxed outline-none focus:ring-2 focus:ring-blue-400 rounded" tabIndex={0}>
           {t.landingDescription}
         </p>
       </section>
 
       {/* Features Grid */}
-      <section className="grid md:grid-cols-2 gap-8 px-4">
-        <div className="bg-white dark:bg-slate-900 p-10 rounded-[2.5rem] border-2 border-slate-100 dark:border-slate-800 shadow-xl hover:shadow-2xl transition-all group">
+      <section className="grid md:grid-cols-2 gap-8 px-4" aria-label="Features and Benefits">
+        <div className="bg-white dark:bg-slate-900 p-10 rounded-[2.5rem] border-2 border-slate-100 dark:border-slate-800 shadow-xl hover:shadow-2xl transition-all group" tabIndex={0}>
           <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600 mb-8 group-hover:scale-110 transition-transform">
             <GraduationCap size={40} />
           </div>
@@ -114,7 +136,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStudentLogin }) => {
           </ul>
         </div>
 
-        <div className="bg-indigo-50 dark:bg-indigo-900/10 p-10 rounded-[2.5rem] border-2 border-indigo-100 dark:border-indigo-900/30 shadow-xl hover:shadow-2xl transition-all group">
+        <div className="bg-indigo-50 dark:bg-indigo-900/10 p-10 rounded-[2.5rem] border-2 border-indigo-100 dark:border-indigo-900/30 shadow-xl hover:shadow-2xl transition-all group" tabIndex={0}>
           <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center text-indigo-600 mb-8 group-hover:scale-110 transition-transform">
             <Zap size={40} />
           </div>
@@ -168,13 +190,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStudentLogin }) => {
       </section>
 
       {/* Mission Section */}
-      <section className="px-4">
+      <section id="mission-section" className="px-4 outline-none scroll-mt-24" tabIndex={-1} aria-labelledby="mission-title">
         <div className="bg-blue-600 text-white p-12 md:p-20 rounded-[3rem] shadow-2xl flex flex-col md:flex-row items-center gap-12">
           <div className="flex-1 space-y-6">
-            <h2 className="text-4xl md:text-5xl font-black">
+            <h2 id="mission-title" className="text-4xl md:text-5xl font-black outline-none focus:ring-2 focus:ring-white/50 rounded" tabIndex={0}>
               {language === 'en' ? 'Our Mission' : 'ഞങ്ങളുടെ ലക്ഷ്യം'}
             </h2>
-            <p className="text-xl md:text-2xl text-blue-100 leading-relaxed">
+            <p className="text-xl md:text-2xl text-blue-100 leading-relaxed outline-none focus:ring-2 focus:ring-white/50 rounded" tabIndex={0}>
               {language === 'en' 
                 ? 'To bridge the digital divide by providing accessible computer education to visually impaired students, enabling them to lead independent and successful lives.' 
                 : 'കാഴ്ചപരിമിതിയുള്ള വിദ്യാർത്ഥികൾക്ക് ലഭ്യമായ കമ്പ്യൂട്ടർ വിദ്യാഭ്യാസം നൽകിക്കൊണ്ട് ഡിജിറ്റൽ വിഭജനം നികത്തുക, അവരെ സ്വതന്ത്രവും വിജയകരവുമായ ജീവിതം നയിക്കാൻ പ്രാപ്തരാക്കുക.'}

@@ -4,7 +4,7 @@ import { auth, db } from './firebase';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, Timestamp, onSnapshot, getDocFromServer } from 'firebase/firestore';
 import { Toaster } from 'react-hot-toast';
-import { LogIn, LogOut, User, Settings, Accessibility, Sun, Moon, Languages, ShieldCheck, X, GraduationCap } from 'lucide-react';
+import { LogIn, LogOut, User, Settings, Accessibility, Sun, Moon, Languages, ShieldCheck, X, GraduationCap, Volume2 } from 'lucide-react';
 import { A11yProvider, useA11y } from './components/A11yProvider';
 import { handleKey } from './lib/utils';
 import { seedLessons } from './lib/seedData';
@@ -105,7 +105,17 @@ const AppContent: React.FC = () => {
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [appName, setAppName] = useState<string>('');
-  const { toggleHighContrast, language, setLanguage, t, announce } = useA11y();
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  const { 
+    toggleHighContrast, 
+    language, 
+    setLanguage, 
+    t, 
+    announce,
+    voices,
+    selectedVoiceURI,
+    setSelectedVoiceURI
+  } = useA11y();
 
   useEffect(() => {
     const testConnection = async () => {
@@ -238,6 +248,12 @@ const AppContent: React.FC = () => {
 
   return (
     <div className={darkMode ? 'dark' : ''}>
+      <a 
+        href="#main-content" 
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[200] focus:bg-blue-600 focus:text-white focus:p-4 focus:rounded-xl focus:font-bold"
+      >
+        {language === 'en' ? 'Skip to main content' : 'പ്രധാന ഉള്ളടക്കത്തിലേക്ക് പോകുക'}
+      </a>
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50">
         <header role="banner" className="bg-white border-b-2 border-slate-200 p-4 sticky top-0 z-50 dark:bg-slate-900 dark:border-slate-800">
           <div className="max-w-7xl mx-auto flex justify-between items-center">
@@ -257,6 +273,54 @@ const AppContent: React.FC = () => {
             </Link>
 
             <div className="flex items-center gap-2 sm:gap-4">
+              <div className="relative">
+                <button
+                  onClick={() => setShowVoiceSettings(!showVoiceSettings)}
+                  onKeyDown={handleKey}
+                  className="p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+                  aria-label={t.voiceSettings}
+                  title={t.voiceSettings}
+                >
+                  <Volume2 size={24} />
+                </button>
+
+                {showVoiceSettings && (
+                  <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 rounded-2xl shadow-2xl p-4 z-[100]">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="font-bold flex items-center gap-2">
+                        <Volume2 size={18} /> {t.voiceSettings}
+                      </h3>
+                      <button onClick={() => setShowVoiceSettings(false)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded">
+                        <X size={16} />
+                      </button>
+                    </div>
+                    <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+                      {voices.map(voice => (
+                        <button
+                          key={voice.voiceURI}
+                          onClick={() => {
+                            setSelectedVoiceURI(voice.voiceURI);
+                            setShowVoiceSettings(false);
+                            announce(`${t.selectVoice}: ${voice.name}`);
+                          }}
+                          className={`w-full text-left p-3 rounded-xl text-sm transition-all border-2 ${
+                            selectedVoiceURI === voice.voiceURI 
+                              ? 'bg-blue-600 text-white border-blue-600' 
+                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 border-transparent'
+                          }`}
+                        >
+                          <div className="font-bold truncate">{voice.name}</div>
+                          <div className="text-xs opacity-70">{voice.lang}</div>
+                        </button>
+                      ))}
+                      {voices.length === 0 && (
+                        <p className="text-sm text-slate-500 p-2 italic">No voices found</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <Link
                 to="/"
                 onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
@@ -326,7 +390,7 @@ const AppContent: React.FC = () => {
           </div>
         </header>
 
-        <main role="main" className="py-8">
+        <main id="main-content" role="main" className="py-8 outline-none" tabIndex={-1}>
           {role === 'teacher' ? (
             <TeacherPanel />
           ) : role === 'student' ? (

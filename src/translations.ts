@@ -159,6 +159,9 @@ export const translations = {
     categoryName: "Category Name (e.g. Vehicles)",
     words: "Words",
     deleteCategory: "Delete Category",
+    selectVoice: "Select Voice",
+    voiceSettings: "Voice Settings",
+    clearVoice: "Clear Voice",
   },
   ml: {
     appName: "എബിലിറ്റി കമ്പ്യൂട്ടർ ലേണിംഗ്",
@@ -320,6 +323,9 @@ export const translations = {
     categoryName: "വിഭാഗത്തിന്റെ പേര് (ഉദാ: വാഹനങ്ങൾ)",
     words: "വാക്കുകൾ",
     deleteCategory: "വിഭാഗം നീക്കം ചെയ്യുക",
+    selectVoice: "ശബ്ദം തിരഞ്ഞെടുക്കുക",
+    voiceSettings: "ശബ്ദ ക്രമീകരണങ്ങൾ",
+    clearVoice: "ശബ്ദം ക്ലിയർ ചെയ്യുക",
   }
 };
 

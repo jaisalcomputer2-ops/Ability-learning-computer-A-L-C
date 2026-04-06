@@ -407,7 +407,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentUser 
       <div className="mb-12 grid grid-cols-1 md:grid-cols-2 gap-8">
         <button
           onClick={() => navigateTo('spelling')}
-          className="p-10 bg-white dark:bg-slate-900 rounded-[2.5rem] border-2 border-slate-100 dark:border-slate-800 shadow-xl hover:border-blue-500 transition-all text-left group"
+          onKeyDown={handleKey}
+          className="p-10 bg-white dark:bg-slate-900 rounded-[2.5rem] border-2 border-slate-100 dark:border-slate-800 shadow-xl hover:border-blue-500 transition-all text-left group outline-none focus:ring-4 focus:ring-blue-400"
+          aria-label={`${t.spellingPractice}. ${language === 'en' ? 'Practice spelling common words with audio feedback.' : 'ഓഡിയോ സഹായത്തോടെ വാക്കുകളുടെ സ്പെല്ലിംഗ് പരിശീലിക്കുക.'}`}
         >
           <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600 mb-8 group-hover:scale-110 transition-transform">
             <Keyboard size={40} />
@@ -420,7 +422,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentUser 
 
         <button
           onClick={() => navigateTo('practical')}
-          className="p-10 bg-white dark:bg-slate-900 rounded-[2.5rem] border-2 border-slate-100 dark:border-slate-800 shadow-xl hover:border-indigo-500 transition-all text-left group"
+          onKeyDown={handleKey}
+          className="p-10 bg-white dark:bg-slate-900 rounded-[2.5rem] border-2 border-slate-100 dark:border-slate-800 shadow-xl hover:border-indigo-500 transition-all text-left group outline-none focus:ring-4 focus:ring-indigo-400"
+          aria-label={`${t.practicalGames}. ${language === 'en' ? 'Fun keyboard games to improve your typing speed and accuracy.' : 'ടൈപ്പിംഗ് സ്പീഡും കൃത്യതയും മെച്ചപ്പെടുത്താൻ സഹായിക്കുന്ന ഗെയിമുകൾ.'}`}
         >
           <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center text-indigo-600 mb-8 group-hover:scale-110 transition-transform">
             <Zap size={40} />
@@ -434,7 +438,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentUser 
 
       {/* Progress Summary Section */}
       <div className="mb-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-3xl shadow-lg border-2 border-slate-100 dark:bg-slate-900 dark:border-slate-800 flex flex-col items-center text-center">
+        <div className="bg-white p-6 rounded-3xl shadow-lg border-2 border-slate-100 dark:bg-slate-900 dark:border-slate-800 flex flex-col items-center text-center" tabIndex={0} aria-label={`${t.lessonsCompleted}: ${Object.values(allProgress).filter((p: any) => p.completed).length} of ${lessons.length}`}>
           <div className="p-4 bg-blue-100 rounded-2xl text-blue-600 mb-4 dark:bg-blue-900/30">
             <CheckCircle size={32} />
           </div>
@@ -445,9 +449,22 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentUser 
           </p>
         </div>
 
-        <div className="bg-white p-6 rounded-3xl shadow-lg border-2 border-slate-100 dark:bg-slate-900 dark:border-slate-800 flex flex-col items-center text-center">
+        <div className="bg-white p-6 rounded-3xl shadow-lg border-2 border-slate-100 dark:bg-slate-900 dark:border-slate-800 flex flex-col items-center text-center" tabIndex={0} aria-label={`${t.averageScore}: ${(() => {
+              const scores = Object.values(allProgress).filter((p: any) => p.score !== undefined) as any[];
+              if (scores.length === 0) return '0%';
+              const avg = (() => {
+                let sum = 0;
+                for (const curr of scores) {
+                  const s = Number(curr.score) || 0;
+                  const t = Number(curr.totalQuestions) || 1;
+                  sum += (s / t);
+                }
+                return sum / scores.length;
+              })();
+              return Math.round(avg * 100) + '%';
+            })()}`}>
           <div className="p-4 bg-green-100 rounded-2xl text-green-600 mb-4 dark:bg-green-900/30">
-            <Award size={32} className="lucide lucide-award" />
+            <Award size={32} />
           </div>
           <h3 className="text-xl font-bold text-slate-500 uppercase tracking-wider mb-1">{t.averageScore}</h3>
           <p className="text-5xl font-black text-green-600">
@@ -468,7 +485,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentUser 
           </p>
         </div>
 
-        <div className="bg-white p-6 rounded-3xl shadow-lg border-2 border-slate-100 dark:bg-slate-900 dark:border-slate-800 flex flex-col items-center text-center">
+        <div className="bg-white p-6 rounded-3xl shadow-lg border-2 border-slate-100 dark:bg-slate-900 dark:border-slate-800 flex flex-col items-center text-center" tabIndex={0} aria-label={t.finalExam}>
           <div className="p-4 bg-purple-100 rounded-2xl text-purple-600 mb-4 dark:bg-purple-900/30">
             <GraduationCap size={32} />
           </div>
@@ -476,7 +493,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentUser 
           {finalExamAssigned ? (
             <button
               onClick={() => navigateTo('exam')}
-              className="mt-2 px-6 py-3 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-all shadow-md active:scale-95"
+              onKeyDown={handleKey}
+              className="mt-2 px-6 py-3 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-all shadow-md active:scale-95 outline-none focus:ring-4 focus:ring-purple-400"
+              aria-label={t.enterCode}
             >
               {t.enterCode}
             </button>

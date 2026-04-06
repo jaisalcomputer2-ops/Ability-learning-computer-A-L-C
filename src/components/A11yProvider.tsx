@@ -8,6 +8,10 @@ interface A11yContextType {
   setLanguage: (lang: Language) => void;
   t: typeof translations.en;
   announce: (message: string, priority?: 'polite' | 'assertive') => void;
+  speak: (text: string, rate?: number) => void;
+  voices: SpeechSynthesisVoice[];
+  selectedVoiceURI: string;
+  setSelectedVoiceURI: (uri: string) => void;
 }
 
 const A11yContext = createContext<A11yContextType | undefined>(undefined);
@@ -16,6 +20,31 @@ export const A11yProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [highContrast, setHighContrast] = useState(false);
   const [language, setLanguage] = useState<Language>('en');
   const [announcement, setAnnouncement] = useState<{ message: string; priority: 'polite' | 'assertive' }>({ message: '', priority: 'polite' });
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState<string>(localStorage.getItem('selectedVoiceURI') || '');
+
+  useEffect(() => {
+    const updateVoices = () => {
+      const availableVoices = window.speechSynthesis.getVoices();
+      setVoices(availableVoices);
+      if (!selectedVoiceURI && availableVoices.length > 0) {
+        const defaultVoice = availableVoices.find(v => v.default) || availableVoices[0];
+        setSelectedVoiceURI(defaultVoice.voiceURI);
+      }
+    };
+
+    updateVoices();
+    window.speechSynthesis.onvoiceschanged = updateVoices;
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null;
+    };
+  }, [selectedVoiceURI]);
+
+  useEffect(() => {
+    if (selectedVoiceURI) {
+      localStorage.setItem('selectedVoiceURI', selectedVoiceURI);
+    }
+  }, [selectedVoiceURI]);
 
   const toggleHighContrast = () => setHighContrast(prev => !prev);
 
@@ -25,10 +54,30 @@ export const A11yProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setTimeout(() => setAnnouncement({ message: '', priority: 'polite' }), 1000);
   };
 
+  const speak = (text: string, rate: number = 0.9) => {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    const voice = voices.find(v => v.voiceURI === selectedVoiceURI);
+    if (voice) utterance.voice = voice;
+    utterance.rate = rate;
+    window.speechSynthesis.speak(utterance);
+  };
+
   const t = translations[language];
 
   return (
-    <A11yContext.Provider value={{ highContrast, toggleHighContrast, language, setLanguage, t, announce }}>
+    <A11yContext.Provider value={{ 
+      highContrast, 
+      toggleHighContrast, 
+      language, 
+      setLanguage, 
+      t, 
+      announce,
+      speak,
+      voices,
+      selectedVoiceURI,
+      setSelectedVoiceURI
+    }}>
       <div className={highContrast ? 'high-contrast' : ''}>
         <div 
           id="screenReader"

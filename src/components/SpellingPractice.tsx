@@ -37,7 +37,7 @@ const DEFAULT_WORDS: WordItem[] = [
 ];
 
 export const SpellingPractice: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  const { t, language, announce } = useA11y();
+  const { t, language, announce, speak } = useA11y();
   const [currentCategory, setCurrentCategory] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [inputValue, setInputValue] = useState('');
@@ -49,10 +49,17 @@ export const SpellingPractice: React.FC<{ onBack: () => void }> = ({ onBack }) =
 
   useEffect(() => {
     const q = query(collection(db, 'spelling_categories'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setCustomCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(q, 
+      (snapshot) => {
+        setCustomCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Spelling categories error:", error);
+        toast.error("Failed to load categories");
+        setLoading(false);
+      }
+    );
     return () => unsubscribe();
   }, []);
 
@@ -74,19 +81,13 @@ export const SpellingPractice: React.FC<{ onBack: () => void }> = ({ onBack }) =
   }, [currentWord, currentIndex]);
 
   const speakWord = (word: string) => {
-    const utterance = new SpeechSynthesisUtterance(word);
-    utterance.lang = 'en-US';
-    utterance.rate = 0.8;
-    window.speechSynthesis.speak(utterance);
+    speak(word, 0.8);
     announce(`${t.typeTheWord}: ${word}. ${t.repeatWord}`);
   };
 
   const speakSpelling = (word: string) => {
     const spelling = word.split('').join(', ');
-    const utterance = new SpeechSynthesisUtterance(spelling);
-    utterance.lang = 'en-US';
-    utterance.rate = 0.7;
-    window.speechSynthesis.speak(utterance);
+    speak(spelling, 0.7);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -183,7 +184,8 @@ export const SpellingPractice: React.FC<{ onBack: () => void }> = ({ onBack }) =
                 setCurrentIndex(0);
                 announce(`${cat} ${t.spellingPractice} ${t.loading}`);
               }}
-              className="p-8 bg-white dark:bg-slate-900 rounded-3xl border-2 border-slate-100 dark:border-slate-800 shadow-lg hover:border-blue-500 transition-all text-left group"
+              onKeyDown={handleKey}
+              className="p-8 bg-white dark:bg-slate-900 rounded-3xl border-2 border-slate-100 dark:border-slate-800 shadow-lg hover:border-blue-500 transition-all text-left group outline-none focus:ring-4 focus:ring-blue-400"
             >
               <h2 className="text-2xl font-black mb-2 group-hover:text-blue-600">
                 {cat === 'Months' ? t.monthsAndYears : cat === 'Common' ? t.commonWords : cat}
@@ -202,7 +204,8 @@ export const SpellingPractice: React.FC<{ onBack: () => void }> = ({ onBack }) =
     <div className="max-w-2xl mx-auto p-6">
       <button
         onClick={() => setCurrentCategory(null)}
-        className="flex items-center gap-2 text-xl font-bold mb-8 text-blue-600 hover:underline"
+        onKeyDown={handleKey}
+        className="flex items-center gap-2 text-xl font-bold mb-8 text-blue-600 hover:underline outline-none focus:ring-2 focus:ring-blue-400 rounded"
       >
         <ArrowLeft /> {language === 'en' ? 'Change Category' : 'വിഭാഗം മാറ്റുക'}
       </button>
@@ -221,14 +224,16 @@ export const SpellingPractice: React.FC<{ onBack: () => void }> = ({ onBack }) =
           <div className="flex justify-center gap-4">
             <button
               onClick={() => speakWord(currentWord.word)}
-              className="p-4 bg-blue-50 text-blue-600 rounded-2xl hover:bg-blue-100 transition-all"
+              onKeyDown={handleKey}
+              className="p-4 bg-blue-50 text-blue-600 rounded-2xl hover:bg-blue-100 transition-all outline-none focus:ring-4 focus:ring-blue-400"
               aria-label={t.repeatWord}
             >
               <Volume2 size={32} />
             </button>
             <button
               onClick={() => speakSpelling(currentWord.word)}
-              className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-100 transition-all"
+              onKeyDown={handleKey}
+              className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-100 transition-all outline-none focus:ring-4 focus:ring-indigo-400"
               aria-label="Hear Spelling"
             >
               <RotateCcw size={32} />
@@ -265,7 +270,8 @@ export const SpellingPractice: React.FC<{ onBack: () => void }> = ({ onBack }) =
 
             <button
               type="submit"
-              className="w-full py-5 bg-blue-600 text-white rounded-2xl text-2xl font-black hover:bg-blue-700 transition-all shadow-xl flex items-center justify-center gap-3"
+              onKeyDown={handleKey}
+              className="w-full py-5 bg-blue-600 text-white rounded-2xl text-2xl font-black hover:bg-blue-700 transition-all shadow-xl flex items-center justify-center gap-3 outline-none focus:ring-4 focus:ring-blue-400"
             >
               <CheckCircle /> {t.submitAnswer}
             </button>

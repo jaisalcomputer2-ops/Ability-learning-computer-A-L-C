@@ -250,8 +250,9 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete, studentName =
         <button
           type="submit"
           disabled={selectedOptionIndex === null || !!feedback}
+          onKeyDown={handleKey}
           className={cn(
-            "mt-4 w-full py-4 rounded-xl text-xl font-bold transition-all",
+            "mt-4 w-full py-4 rounded-xl text-xl font-bold transition-all outline-none focus:ring-4 focus:ring-blue-400",
             selectedOptionIndex === null || !!feedback
               ? "bg-slate-200 text-slate-400 cursor-not-allowed"
               : "bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl active:scale-[0.98]"

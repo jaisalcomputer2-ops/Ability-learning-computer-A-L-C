@@ -5,7 +5,7 @@ import { handleKey } from '../lib/utils';
 import toast from 'react-hot-toast';
 
 export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  const { t, language, announce } = useA11y();
+  const { t, language, announce, speak } = useA11y();
   const [currentGame, setCurrentGame] = useState<'key-finder' | 'typing-speed' | null>(null);
   const [targetKey, setTargetKey] = useState('');
   const [score, setScore] = useState(0);
@@ -51,18 +51,12 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   };
 
   const speakKey = (key: string) => {
-    const utterance = new SpeechSynthesisUtterance(`Find key: ${key}`);
-    utterance.lang = 'en-US';
-    utterance.rate = 1;
-    window.speechSynthesis.speak(utterance);
+    speak(`Find key: ${key}`, 1);
     announce(`Find key: ${key}`);
   };
 
   const speakWord = (word: string) => {
-    const utterance = new SpeechSynthesisUtterance(word);
-    utterance.lang = 'en-US';
-    utterance.rate = 0.9;
-    window.speechSynthesis.speak(utterance);
+    speak(word, 0.9);
     announce(`Type word: ${word}`);
   };
 
@@ -75,9 +69,7 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
       setTargetKey(nextKey);
       speakKey(nextKey);
     } else {
-      const utterance = new SpeechSynthesisUtterance("Wrong key");
-      utterance.lang = 'en-US';
-      window.speechSynthesis.speak(utterance);
+      speak("Wrong key", 1);
     }
   };
 
@@ -92,9 +84,7 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
       setTargetWord(nextWord);
       speakWord(nextWord);
     } else {
-      const utterance = new SpeechSynthesisUtterance("Wrong spelling");
-      utterance.lang = 'en-US';
-      window.speechSynthesis.speak(utterance);
+      speak("Wrong spelling", 1);
       setInputValue('');
     }
   };
