@@ -54,5 +54,10 @@ service cloud.firestore {
     match /registration_requests/{requestId} {
       allow read, write: if true;
     }
+
+    match /spelling_categories/{catId} {
+      allow read: if true;
+      allow write: if isTeacher();
+    }
   }
 }

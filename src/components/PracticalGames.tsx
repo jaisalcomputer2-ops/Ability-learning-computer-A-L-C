@@ -4,37 +4,70 @@ import { Keyboard, Zap, Target, ArrowLeft, RotateCcw, Volume2, ShieldCheck, Spar
 import { handleKey } from '../lib/utils';
 import toast from 'react-hot-toast';
 
+import { Howl } from 'howler';
+
 export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const { t, language, announce, speak } = useA11y();
-  const [currentGame, setCurrentGame] = useState<'key-finder' | 'typing-speed' | null>(null);
+  const [currentGame, setCurrentGame] = useState<'key-finder' | 'typing-speed' | 'letter-quest' | 'animal-quest' | null>(null);
   const [targetKey, setTargetKey] = useState('');
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(30);
   const [isActive, setIsActive] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [targetWord, setTargetWord] = useState('');
+  const [gameLevel, setGameLevel] = useState(1);
+  const [showGameOver, setShowGameOver] = useState(false);
+  const [currentAnimal, setCurrentAnimal] = useState<any>(null);
+  const [isCorrect, setIsCorrect] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const WORDS = ["apple", "banana", "cherry", "date", "elderberry", "fig", "grape", "honeydew", "kiwi", "lemon"];
   const KEYS = "abcdefghijklmnopqrstuvwxyz0123456789".split("");
+  
+  const ANIMALS = [
+    { name: "Lion", emoji: "🦁", sound: "https://www.soundjay.com/nature/sounds/lion-roar-01.mp3" },
+    { name: "Cat", emoji: "🐱", sound: "https://www.soundjay.com/nature/sounds/cat-meow-01.mp3" },
+    { name: "Dog", emoji: "🐶", sound: "https://www.soundjay.com/nature/sounds/dog-bark-01.mp3" },
+    { name: "Cow", emoji: "🐮", sound: "https://www.soundjay.com/nature/sounds/cow-moo-01.mp3" },
+    { name: "Sheep", emoji: "🐑", sound: "https://www.soundjay.com/nature/sounds/sheep-lamb-01.mp3" },
+    { name: "Elephant", emoji: "🐘", sound: "https://www.soundjay.com/nature/sounds/elephant-trumpet-01.mp3" },
+    { name: "Monkey", emoji: "🐒", sound: "https://www.soundjay.com/nature/sounds/monkey-chatter-01.mp3" },
+    { name: "Tiger", emoji: "🐯", sound: "https://www.soundjay.com/nature/sounds/tiger-growl-01.mp3" },
+    { name: "Duck", emoji: "🦆", sound: "https://www.soundjay.com/nature/sounds/duck-quack-01.mp3" },
+    { name: "Horse", emoji: "🐴", sound: "https://www.soundjay.com/nature/sounds/horse-whinny-01.mp3" },
+    { name: "Pig", emoji: "🐷", sound: "https://www.soundjay.com/nature/sounds/pig-grunt-01.mp3" },
+    { name: "Rooster", emoji: "🐓", sound: "https://www.soundjay.com/nature/sounds/rooster-crowing-01.mp3" }
+  ];
+
+  const LEVEL_KEYS = [
+    "asdfjkl;".split(""), // Home Row
+    "qwertyuiop".split(""), // Top Row
+    "zxcvbnm".split(""), // Bottom Row
+    "1234567890".split(""), // Numbers
+    "abcdefghijklmnopqrstuvwxyz0123456789".split("") // All
+  ];
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (isActive && timeLeft > 0) {
       timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
-    } else if (timeLeft === 0) {
+    } else if (timeLeft === 0 && isActive) {
       setIsActive(false);
-      announce(`${t.quizCompleted}. ${t.score}: ${score}`);
-      toast.success(`${t.quizCompleted} Score: ${score}`);
+      setShowGameOver(true);
+      const finalMsg = `${t.quizCompleted}. ${t.score}: ${score}`;
+      announce(finalMsg);
+      speak(finalMsg, 1);
+      toast.success(finalMsg);
     }
     return () => clearInterval(timer);
-  }, [isActive, timeLeft, score, t.quizCompleted, t.score, announce]);
+  }, [isActive, timeLeft, score, t.quizCompleted, t.score, announce, speak]);
 
   const startKeyFinder = () => {
     setCurrentGame('key-finder');
     setScore(0);
     setTimeLeft(30);
     setIsActive(true);
+    setShowGameOver(false);
     const firstKey = KEYS[Math.floor(Math.random() * KEYS.length)];
     setTargetKey(firstKey);
     speakKey(firstKey);
@@ -45,47 +78,142 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
     setScore(0);
     setTimeLeft(30);
     setIsActive(true);
+    setShowGameOver(false);
     const firstWord = WORDS[Math.floor(Math.random() * WORDS.length)];
     setTargetWord(firstWord);
     speakWord(firstWord);
   };
 
+  const startLetterQuest = (level: number = 1) => {
+    setCurrentGame('letter-quest');
+    setGameLevel(level);
+    setScore(0);
+    setTimeLeft(60); // More time for kids
+    setIsActive(true);
+    setShowGameOver(false);
+    const keys = LEVEL_KEYS[level - 1];
+    const firstKey = keys[Math.floor(Math.random() * keys.length)];
+    setTargetKey(firstKey);
+    speakQuestKey(firstKey);
+  };
+
+  const startAnimalQuest = () => {
+    setCurrentGame('animal-quest');
+    setScore(0);
+    setTimeLeft(60);
+    setIsActive(true);
+    setShowGameOver(false);
+    setIsCorrect(false);
+    const firstAnimal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
+    setCurrentAnimal(firstAnimal);
+    speakAnimal(firstAnimal.name);
+  };
+
   const speakKey = (key: string) => {
-    speak(`Find key: ${key}`, 1);
-    announce(`Find key: ${key}`);
+    const msg = `${language === 'en' ? 'Find key' : 'കീ കണ്ടെത്തുക'}: ${key}`;
+    speak(msg, 1);
+    announce(msg);
+  };
+
+  const speakQuestKey = (key: string) => {
+    const msg = `${t.findTheLetter} ${key.toUpperCase()}`;
+    speak(msg, 1.1);
+    announce(msg);
   };
 
   const speakWord = (word: string) => {
     speak(word, 0.9);
-    announce(`Type word: ${word}`);
+    announce(`${language === 'en' ? 'Type word' : 'വാക്ക് ടൈപ്പ് ചെയ്യുക'}: ${word}`);
+  };
+
+  const speakAnimal = (name: string) => {
+    const msg = `${t.spellTheAnimal}: ${name}`;
+    speak(msg, 1);
+    announce(msg);
+  };
+
+  const animalSounds = useRef<Record<string, Howl>>({});
+
+  useEffect(() => {
+    // Pre-load animal sounds
+    ANIMALS.forEach(animal => {
+      animalSounds.current[animal.name] = new Howl({
+        src: [animal.sound],
+        html5: true,
+        preload: true
+      });
+    });
+  }, []);
+
+  const playAnimalSound = (name: string) => {
+    if (animalSounds.current[name]) {
+      animalSounds.current[name].play();
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (!isActive || currentGame !== 'key-finder') return;
-
-    if (e.key.toLowerCase() === targetKey.toLowerCase()) {
-      setScore(prev => prev + 1);
-      const nextKey = KEYS[Math.floor(Math.random() * KEYS.length)];
-      setTargetKey(nextKey);
-      speakKey(nextKey);
-    } else {
-      speak("Wrong key", 1);
+    if (!isActive) return;
+    
+    if (currentGame === 'key-finder' || currentGame === 'letter-quest') {
+      if (e.key.toLowerCase() === targetKey.toLowerCase()) {
+        setScore(prev => prev + 1);
+        
+        if (currentGame === 'letter-quest') {
+          const successMsg = `${t.wellDoneLetter} ${targetKey.toUpperCase()}`;
+          speak(successMsg, 1.2);
+          announce(successMsg);
+          
+          // Next key after a short delay for kids
+          setTimeout(() => {
+            const keys = LEVEL_KEYS[gameLevel - 1];
+            const nextKey = keys[Math.floor(Math.random() * keys.length)];
+            setTargetKey(nextKey);
+            speakQuestKey(nextKey);
+          }, 1000);
+        } else {
+          const nextKey = KEYS[Math.floor(Math.random() * KEYS.length)];
+          setTargetKey(nextKey);
+          speakKey(nextKey);
+        }
+      } else {
+        speak(language === 'en' ? "Try again" : "വീണ്ടും ശ്രമിക്കുക", 1);
+      }
     }
   };
 
   const handleTypingSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isActive || currentGame !== 'typing-speed') return;
+    if (!isActive) return;
 
-    if (inputValue.trim().toLowerCase() === targetWord.toLowerCase()) {
-      setScore(prev => prev + 1);
-      setInputValue('');
-      const nextWord = WORDS[Math.floor(Math.random() * WORDS.length)];
-      setTargetWord(nextWord);
-      speakWord(nextWord);
-    } else {
-      speak("Wrong spelling", 1);
-      setInputValue('');
+    if (currentGame === 'typing-speed') {
+      if (inputValue.trim().toLowerCase() === targetWord.toLowerCase()) {
+        setScore(prev => prev + 1);
+        setInputValue('');
+        const nextWord = WORDS[Math.floor(Math.random() * WORDS.length)];
+        setTargetWord(nextWord);
+        speakWord(nextWord);
+      } else {
+        speak("Wrong spelling", 1);
+        setInputValue('');
+      }
+    } else if (currentGame === 'animal-quest') {
+      if (inputValue.trim().toLowerCase() === currentAnimal.name.toLowerCase()) {
+        setScore(prev => prev + 1);
+        setIsCorrect(true);
+        playAnimalSound(currentAnimal.name);
+        announce(`${t.correct}! ${t.listenToTheSound} ${currentAnimal.name}`);
+        
+        setTimeout(() => {
+          setIsCorrect(false);
+          setInputValue('');
+          const nextAnimal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
+          setCurrentAnimal(nextAnimal);
+          speakAnimal(nextAnimal.name);
+        }, 3000);
+      } else {
+        speak(language === 'en' ? "Wrong spelling, try again" : "തെറ്റായ സ്പെല്ലിംഗ്, വീണ്ടും ശ്രമിക്കുക", 1);
+        setInputValue('');
+      }
     }
   };
 
@@ -110,6 +238,32 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
         </div>
 
         <div className="grid sm:grid-cols-2 gap-8">
+          <button
+            onClick={() => startLetterQuest(1)}
+            className="p-10 bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-900/10 dark:to-orange-900/10 rounded-[2.5rem] border-2 border-yellow-100 dark:border-yellow-800 shadow-xl hover:scale-105 transition-all text-left group"
+          >
+            <div className="w-16 h-16 bg-yellow-400 rounded-2xl flex items-center justify-center text-white mb-8 shadow-lg group-hover:rotate-12 transition-transform">
+              <Sparkles size={40} />
+            </div>
+            <h2 className="text-3xl font-black mb-4 text-orange-700 dark:text-orange-400">{t.letterQuest}</h2>
+            <p className="text-lg text-slate-600 dark:text-slate-400 leading-relaxed">
+              {t.letterQuestDesc}
+            </p>
+          </button>
+
+          <button
+            onClick={startAnimalQuest}
+            className="p-10 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-[2.5rem] border-2 border-green-100 dark:border-green-800 shadow-xl hover:scale-105 transition-all text-left group"
+          >
+            <div className="w-16 h-16 bg-green-500 rounded-2xl flex items-center justify-center text-white mb-8 shadow-lg group-hover:rotate-12 transition-transform">
+              <Volume2 size={40} />
+            </div>
+            <h2 className="text-3xl font-black mb-4 text-emerald-700 dark:text-emerald-400">{t.animalQuest}</h2>
+            <p className="text-lg text-slate-600 dark:text-slate-400 leading-relaxed">
+              {t.animalQuestDesc}
+            </p>
+          </button>
+
           <button
             onClick={startKeyFinder}
             className="p-10 bg-white dark:bg-slate-900 rounded-[2.5rem] border-2 border-slate-100 dark:border-slate-800 shadow-xl hover:border-blue-500 transition-all text-left group"
@@ -155,6 +309,11 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
           <ArrowLeft /> {language === 'en' ? 'Exit Game' : 'ഗെയിമിൽ നിന്ന് പുറത്തുകടക്കുക'}
         </button>
         <div className="flex items-center gap-6">
+          {(currentGame === 'letter-quest' || currentGame === 'animal-quest') && (
+            <div className={`flex items-center gap-2 px-6 py-3 rounded-2xl border-2 shadow-sm ${currentGame === 'letter-quest' ? 'bg-orange-100 border-orange-200 text-orange-700' : 'bg-green-100 border-green-200 text-green-700'}`}>
+              <span className="font-bold">{currentGame === 'letter-quest' ? `${t.gameLevel} ${gameLevel}` : t.animalQuest}</span>
+            </div>
+          )}
           <div className="flex items-center gap-2 bg-white dark:bg-slate-900 px-6 py-3 rounded-2xl border-2 border-slate-100 dark:border-slate-800 shadow-lg">
             <Trophy className="text-yellow-500" />
             <span className="text-2xl font-black">{score}</span>
@@ -166,16 +325,48 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 p-12 md:p-20 rounded-[3rem] border-2 border-slate-100 dark:border-slate-800 shadow-2xl text-center space-y-12">
-        {currentGame === 'key-finder' ? (
+      <div className={`p-12 md:p-20 rounded-[3rem] border-4 shadow-2xl text-center space-y-12 transition-all ${currentGame === 'letter-quest' ? 'bg-gradient-to-b from-yellow-50 to-white border-yellow-200 dark:from-slate-900 dark:to-slate-800 dark:border-yellow-900/30' : currentGame === 'animal-quest' ? 'bg-gradient-to-b from-green-50 to-white border-green-200 dark:from-slate-900 dark:to-slate-800 dark:border-green-900/30' : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800'}`}>
+        {showGameOver ? (
+          <div className="space-y-8 animate-in fade-in zoom-in duration-500">
+            <div className="inline-flex p-8 bg-yellow-100 rounded-full text-yellow-600 dark:bg-yellow-900/30">
+              <Trophy size={80} className="animate-bounce" />
+            </div>
+            <h2 className="text-5xl font-black text-slate-800 dark:text-white">{t.quizCompleted}</h2>
+            <p className="text-3xl font-bold text-blue-600">{t.score}: {score}</p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center pt-8">
+              <button
+                onClick={() => {
+                  if (currentGame === 'letter-quest') startLetterQuest(gameLevel);
+                  else if (currentGame === 'animal-quest') startAnimalQuest();
+                  else if (currentGame === 'key-finder') startKeyFinder();
+                  else startTypingSpeed();
+                }}
+                className="px-10 py-5 bg-blue-600 text-white rounded-2xl text-2xl font-black hover:bg-blue-700 transition-all shadow-xl flex items-center justify-center gap-3"
+              >
+                <RotateCcw /> {language === 'en' ? 'Play Again' : 'വീണ്ടും കളിക്കുക'}
+              </button>
+              <button
+                onClick={() => {
+                  setCurrentGame(null);
+                  setShowGameOver(false);
+                }}
+                className="px-10 py-5 bg-slate-100 text-slate-600 rounded-2xl text-2xl font-black hover:bg-slate-200 transition-all border-2 border-slate-200"
+              >
+                {t.backToLessons}
+              </button>
+            </div>
+          </div>
+        ) : currentGame === 'key-finder' || currentGame === 'letter-quest' ? (
           <>
             <div className="space-y-6">
-              <h2 className="text-3xl font-bold text-slate-500 uppercase tracking-widest">{t.keyboardOrientation}</h2>
-              <div className="text-9xl font-black text-blue-600 animate-bounce">
+              <h2 className={`text-3xl font-bold uppercase tracking-widest ${currentGame === 'letter-quest' ? 'text-orange-500' : 'text-slate-500'}`}>
+                {currentGame === 'letter-quest' ? t.letterQuest : t.keyboardOrientation}
+              </h2>
+              <div className={`text-[12rem] font-black animate-bounce drop-shadow-2xl ${currentGame === 'letter-quest' ? 'text-orange-600' : 'text-blue-600'}`}>
                 {targetKey.toUpperCase()}
               </div>
-              <p className="text-2xl font-bold text-slate-600 dark:text-slate-400">
-                {language === 'en' ? 'Press this key on your keyboard' : 'ഈ കീ നിങ്ങളുടെ കീബോർഡിൽ അമർത്തുക'}
+              <p className="text-3xl font-bold text-slate-600 dark:text-slate-400">
+                {language === 'en' ? 'Press this key!' : 'ഈ കീ അമർത്തുക!'}
               </p>
             </div>
             <input
@@ -185,7 +376,67 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
               className="opacity-0 absolute"
               aria-label="Key input field"
             />
+            
+            {currentGame === 'letter-quest' && (
+              <div className="flex justify-center gap-4 pt-8">
+                {[1, 2, 3, 4, 5].map(lvl => (
+                  <button
+                    key={lvl}
+                    onClick={() => startLetterQuest(lvl)}
+                    className={`w-12 h-12 rounded-full font-bold transition-all ${gameLevel === lvl ? 'bg-orange-600 text-white scale-125 shadow-lg' : 'bg-orange-100 text-orange-600 hover:bg-orange-200'}`}
+                  >
+                    {lvl}
+                  </button>
+                ))}
+              </div>
+            )}
           </>
+        ) : currentGame === 'animal-quest' ? (
+          <div className="space-y-8 relative overflow-hidden">
+            {/* Decorative elements for kids */}
+            <div className="absolute top-0 left-0 w-20 h-20 bg-yellow-200/50 rounded-full -translate-x-10 -translate-y-10 blur-2xl" />
+            <div className="absolute bottom-0 right-0 w-32 h-32 bg-green-200/50 rounded-full translate-x-10 translate-y-10 blur-2xl" />
+            
+            <div className="space-y-4 relative z-10">
+              <h2 className="text-3xl font-black text-green-600 uppercase tracking-[0.2em] drop-shadow-sm">{t.animalQuest}</h2>
+              <div className={`text-[14rem] transition-all duration-700 filter drop-shadow-2xl ${isCorrect ? 'scale-125 rotate-12' : 'scale-100 hover:scale-105'}`}>
+                {currentAnimal?.emoji}
+              </div>
+              {isCorrect && (
+                <div className="text-5xl font-black text-green-600 animate-bounce tracking-tighter">
+                  {currentAnimal?.name.toUpperCase()}! 🌟
+                </div>
+              )}
+            </div>
+            <form onSubmit={handleTypingSubmit} className="max-w-md mx-auto space-y-6 relative z-10">
+              <div className="relative group">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  autoFocus
+                  disabled={isCorrect}
+                  className={`w-full p-8 text-5xl font-black text-center border-8 rounded-[2.5rem] outline-none dark:bg-slate-800 uppercase tracking-[0.3em] transition-all duration-300 ${isCorrect ? 'bg-green-50 border-green-500 text-green-600 shadow-[0_0_40px_rgba(34,197,94,0.3)]' : 'bg-white border-slate-100 focus:border-green-400 dark:border-slate-700 shadow-xl'}`}
+                  placeholder="???"
+                  autoComplete="off"
+                />
+                {!isCorrect && (
+                  <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-4 py-1 bg-green-100 text-green-700 text-sm font-bold rounded-full border border-green-200">
+                    {t.typeTheWord}
+                  </div>
+                )}
+              </div>
+              {!isCorrect && (
+                <button
+                  type="submit"
+                  className="w-full py-6 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-[2rem] text-3xl font-black hover:from-green-600 hover:to-emerald-700 transition-all shadow-[0_10px_25px_rgba(16,185,129,0.4)] active:scale-95 flex items-center justify-center gap-4"
+                >
+                  <Sparkles /> {t.submitAnswer}
+                </button>
+              )}
+            </form>
+          </div>
         ) : (
           <>
             <div className="space-y-6">

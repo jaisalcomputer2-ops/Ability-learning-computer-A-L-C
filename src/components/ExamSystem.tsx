@@ -110,7 +110,12 @@ export const ExamSystem: React.FC<ExamSystemProps> = ({ studentUser }) => {
 
     let finalScore = 0;
     questions.forEach(q => {
-      if (answers[q.id] === q.correct) {
+      const userAnswer = answers[q.id];
+      const isCorrect = q.correctAnswer !== undefined 
+        ? q.options[q.correctAnswer] === userAnswer
+        : q.correct === userAnswer;
+      
+      if (isCorrect) {
         finalScore++;
       }
     });
@@ -245,7 +250,7 @@ export const ExamSystem: React.FC<ExamSystemProps> = ({ studentUser }) => {
                 {questions.map((q, idx) => (
                   <fieldset key={q.id} className="space-y-4">
                     <legend className="text-2xl font-bold mb-4 outline-none focus:ring-2 focus:ring-blue-400 rounded" tabIndex={0}>
-                      {idx + 1}. {q.text}
+                      {idx + 1}. {q.text || q.question}
                     </legend>
                     <div className="grid gap-3">
                       {q.options.map((opt) => (

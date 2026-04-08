@@ -23,7 +23,7 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete, studentName =
   const [showResult, setShowResult] = useState(false);
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
-  const { announce, t } = useA11y();
+  const { announce, t, language } = useA11y();
   const [isFocused, setIsFocused] = useState(false);
 
   const [focusedOptionIndex, setFocusedOptionIndex] = useState<number>(-1);
@@ -42,19 +42,21 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete, studentName =
         e.preventDefault();
         setFocusedOptionIndex(prev => (prev - 1 + optionsCount) % optionsCount);
       } else if (key === "Enter" && focusedOptionIndex !== -1) {
-        e.preventDefault();
-        setSelectedOptionIndex(focusedOptionIndex);
+        // Only trigger if no radio is selected or if we want to submit
+        // But usually Enter on a focused radio selects it.
+        // If an option is already selected, Enter should submit the form.
       } else {
         const index = parseInt(key) - 1;
         if (index >= 0 && index < optionsCount) {
           setSelectedOptionIndex(index);
+          announce(`${t.option} ${index + 1} ${t.selected}: ${questions[currentQuestion].options[index]}`);
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentQuestion, feedback, showResult, questions, focusedOptionIndex]);
+  }, [currentQuestion, feedback, showResult, questions, focusedOptionIndex, t, announce]);
 
   useEffect(() => {
     if (focusedOptionIndex !== -1) {
@@ -82,20 +84,17 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete, studentName =
     if (feedback || selectedOptionIndex === null) return;
 
     const isCorrect = selectedOptionIndex === questions[currentQuestion].correctAnswer;
-    const instructionEl = document.getElementById('quizInstruction');
-
+    
     if (isCorrect) {
       setScore(prev => prev + 1);
       setFeedback('correct');
       correctSound.play();
-      if (instructionEl) instructionEl.textContent = t.correct;
-      announce(t.correct);
+      announce(t.correct, 'assertive');
     } else {
       setFeedback('wrong');
       wrongSound.play();
-      const wrongMsg = `${t.incorrect}. ${t.question} ${currentQuestion + 1}: ${questions[currentQuestion].options[questions[currentQuestion].correctAnswer]}`;
-      if (instructionEl) instructionEl.textContent = wrongMsg;
-      announce(wrongMsg);
+      const wrongMsg = `${t.incorrect}. ${t.correctAnswer}: ${questions[currentQuestion].options[questions[currentQuestion].correctAnswer]}`;
+      announce(wrongMsg, 'assertive');
     }
 
     setTimeout(() => {
@@ -103,18 +102,16 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete, studentName =
       setSelectedOptionIndex(null);
       if (currentQuestion + 1 < questions.length) {
         setCurrentQuestion(prev => prev + 1);
-        if (instructionEl) {
-          instructionEl.textContent = `${t.question} ${currentQuestion + 2}: ${questions[currentQuestion + 1].question}`;
-        }
+        const nextQ = questions[currentQuestion + 1];
+        announce(`${t.question} ${currentQuestion + 2}: ${nextQ.question}. ${t.chooseOneAnswer}`, 'assertive');
       } else {
         setShowResult(true);
         const finalScore = score + (isCorrect ? 1 : 0);
-        const resultMsg = `${t.quizCompleted} ${t.score}: ${finalScore} / ${questions.length}`;
-        if (instructionEl) instructionEl.textContent = resultMsg;
+        const resultMsg = `${t.quizCompleted}. ${t.score}: ${finalScore} / ${questions.length}. ${finalScore < 3 ? t.practiceNeeded : t.goodJob}`;
         onComplete?.(finalScore);
-        announce(resultMsg);
+        announce(resultMsg, 'assertive');
       }
-    }, 2000);
+    }, 3000);
   };
 
   const resetQuiz = () => {
@@ -123,11 +120,7 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete, studentName =
     setShowResult(false);
     setFeedback(null);
     setSelectedOptionIndex(null);
-    const instructionEl = document.getElementById('quizInstruction');
-    if (instructionEl) {
-      instructionEl.textContent = `${t.quizStartedInstructions} ${t.question} 1: ${questions[0].question}`;
-    }
-    announce(t.retry);
+    announce(`${t.retry}. ${t.quizStartedInstructions}. ${t.question} 1: ${questions[0].question}`, 'assertive');
   };
 
   if (showResult) {
@@ -193,26 +186,27 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete, studentName =
   return (
     <div 
       className="max-w-2xl mx-auto p-6 bg-white rounded-2xl shadow-xl border-2 border-slate-200 dark:bg-slate-900 dark:border-slate-700"
-      tabIndex={0}
+      role="main"
+      aria-labelledby="quizHeading"
     >
-      <div id="quizInstruction" aria-live="assertive" style={{ position: 'absolute', left: '-9999px' }}>
-      </div>
       <div className="mb-8">
-        <h2 id="questionText" className="text-3xl font-bold mt-2 leading-tight rounded-lg inline-block outline-none focus:ring-2 focus:ring-blue-400">
-          {t.question} {currentQuestion + 1}: {q.question}
-        </h2>
-        <div className="text-lg font-bold text-slate-500 uppercase tracking-widest mt-2">
+        <h2 id="quizHeading" className="sr-only">{t.quiz}</h2>
+        <h3 id="questionText" className="text-3xl font-bold mt-2 leading-tight rounded-lg inline-block outline-none focus:ring-2 focus:ring-blue-400" tabIndex={0}>
+          <span className="sr-only">{t.question} {currentQuestion + 1} {language === 'en' ? 'of' : 'ൽ'} {questions.length}:</span>
+          {q.question}
+        </h3>
+        <div className="text-lg font-bold text-slate-500 uppercase tracking-widest mt-2" aria-hidden="true">
           {currentQuestion + 1} / {questions.length}
         </div>
-        <p aria-live="polite" className="mt-4 text-slate-600 dark:text-slate-400 font-medium">
+        <p className="mt-4 text-slate-600 dark:text-slate-400 font-medium">
           {t.chooseOneAnswer}
         </p>
       </div>
 
       <form className="grid gap-4" onSubmit={(e) => { e.preventDefault(); handleAnswer(); }}>
         <fieldset className="border-2 border-slate-200 rounded-2xl p-6 dark:border-slate-700">
-          <legend className="text-xl font-bold px-4 text-slate-600 dark:text-slate-400">Select the correct answer</legend>
-          <div className="grid gap-4 mt-4">
+          <legend className="text-xl font-bold px-4 text-slate-600 dark:text-slate-400">{t.options}</legend>
+          <div className="grid gap-4 mt-4" role="radiogroup" aria-labelledby="questionText">
             {q.options.map((option, index) => (
               <label
                 key={index}
@@ -230,17 +224,20 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete, studentName =
                   name={`question-${currentQuestion}`}
                   value={index}
                   checked={selectedOptionIndex === index}
-                  onChange={() => setSelectedOptionIndex(index)}
+                  onChange={() => {
+                    setSelectedOptionIndex(index);
+                    announce(`${t.option} ${index + 1} ${t.selected}: ${option}`);
+                  }}
                   disabled={!!feedback}
                   className="w-6 h-6 text-blue-600 focus:ring-blue-500 border-slate-300"
                   onFocus={() => setFocusedOptionIndex(index)}
                 />
                 <span className="text-xl font-medium">
+                  <span className="sr-only">{t.option} {index + 1}: </span>
                   {option}
                 </span>
-                <div className="ml-auto">
-                  {feedback === 'correct' && index === q.correctAnswer && <CheckCircle className="text-green-600" />}
-                  {feedback === 'wrong' && index === q.correctAnswer && <CheckCircle className="text-green-600" />}
+                <div className="ml-auto" aria-hidden="true">
+                  {(feedback === 'correct' || feedback === 'wrong') && index === q.correctAnswer && <CheckCircle className="text-green-600" />}
                 </div>
               </label>
             ))}

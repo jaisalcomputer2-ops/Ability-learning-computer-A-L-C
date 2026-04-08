@@ -2,10 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { db, auth, storage } from '../firebase';
 import { collection, addDoc, query, onSnapshot, deleteDoc, doc, updateDoc, Timestamp, orderBy, where, getDocs, setDoc, getDocFromServer } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, uploadBytes } from 'firebase/storage';
-import { Plus, Trash2, BookOpen, Music, HelpCircle, Save, AlertTriangle, Edit3, X, BrainCircuit, Sparkles, Loader2, Image as ImageIcon, ChevronDown, ChevronUp, Settings, Type as TypeIcon, Upload, Key, Users, ClipboardCheck, Info, FileAudio, GraduationCap, Phone, Copy, Keyboard } from 'lucide-react';
+import { Plus, Trash2, BookOpen, Music, HelpCircle, Save, AlertTriangle, Edit3, X, BrainCircuit, Sparkles, Loader2, Image as ImageIcon, ChevronDown, ChevronUp, Settings, Type as TypeIcon, Upload, Key, Users, ClipboardCheck, Info, FileAudio, GraduationCap, Phone, Copy, Keyboard, RotateCcw } from 'lucide-react';
 import { useA11y } from './A11yProvider';
 import { handleKey, getDirectAudioUrl, isYouTubeUrl } from '../lib/utils';
-import { GoogleGenAI, Type } from "@google/genai";
 import { seedLessons } from '../lib/seedData';
 import toast from 'react-hot-toast';
 
@@ -428,39 +427,64 @@ export const TeacherPanel: React.FC = () => {
     }
 
     setGeneratingAIExam(true);
+    announce(language === 'en' ? 'Generating exam questions. This may take a moment for large sets.' : 'ചോദ്യങ്ങൾ നിർമ്മിക്കുന്നു. കൂടുതൽ ചോദ്യങ്ങൾ ഉണ്ടെങ്കിൽ അല്പം സമയം എടുത്തേക്കാം.');
+    
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Convert the following text into a structured JSON array of quiz questions. 
-        Each question should have: "question" (string), "options" (array of 3 strings), and "correctAnswer" (index 0-2).
-        Text: ${aiExamInput}`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                question: { type: Type.STRING },
-                options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                correctAnswer: { type: Type.INTEGER }
-              },
-              required: ["question", "options", "correctAnswer"]
-            }
-          }
-        }
+      const response = await fetch('/api/ai/generate-exam', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: aiExamInput, language })
       });
 
-      const generatedQuestions = JSON.parse(response.text);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate exam questions");
+      }
+      
+      const generatedQuestions = await response.json();
       setQuizQuestions(generatedQuestions);
-      toast.success(language === 'en' ? 'Exam questions generated!' : 'പരീക്ഷാ ചോദ്യങ്ങൾ നിർമ്മിച്ചു!');
-      setAiExamInput('');
-    } catch (error) {
+      toast.success(language === 'en' 
+        ? `Generated ${generatedQuestions.length} questions! Review and save them below.` 
+        : `${generatedQuestions.length} ചോദ്യങ്ങൾ നിർമ്മിച്ചു! താഴെ പരിശോധിച്ചു സേവ് ചെയ്യുക.`);
+      announce(`${generatedQuestions.length} questions generated.`);
+    } catch (error: any) {
       console.error("AI Generation Error:", error);
-      toast.error("Failed to generate exam questions");
+      let errorMsg = language === 'en' 
+        ? `Failed to generate exam questions: ${error.message || 'Unknown error'}` 
+        : `ചോദ്യങ്ങൾ നിർമ്മിക്കാൻ സാധിച്ചില്ല: ${error.message || 'Unknown error'}`;
+      
+      if (error.message?.includes('SAFETY')) {
+        errorMsg = language === 'en' ? "Content flagged by safety filters. Please check your text." : "സുരക്ഷാ കാരണങ്ങളാൽ ഈ ടെക്സ്റ്റ് പ്രോസസ്സ് ചെയ്യാൻ കഴിയില്ല.";
+      }
+      
+      toast.error(errorMsg);
     } finally {
       setGeneratingAIExam(false);
+    }
+  };
+
+  const handleSaveToQuestionPool = async () => {
+    if (quizQuestions.length === 0 || (quizQuestions.length === 1 && !quizQuestions[0].question)) {
+      toast.error(language === 'en' ? 'No questions to save' : 'സേവ് ചെയ്യാൻ ചോദ്യങ്ങളില്ല');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await addDoc(collection(db, 'quizzes'), {
+        lessonId: 'general_pool_' + Date.now(),
+        questions: quizQuestions,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        isGeneralPool: true
+      });
+      toast.success(t.saveToPool + ' ' + (language === 'en' ? 'Successful!' : 'വിജയകരമായി!'));
+      setQuizQuestions([{ question: '', options: ['', '', ''], correctAnswer: 0 }]);
+      setAiExamInput('');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'quizzes');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -482,23 +506,21 @@ export const TeacherPanel: React.FC = () => {
     }
 
     setGeneratingSpellingWords(true);
+    announce(language === 'en' ? 'Generating spelling words...' : 'വാക്കുകൾ നിർമ്മിക്കുന്നു...');
+    
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Generate 10 English words for the category: "${newSpellingCategory}". 
-        Return only a JSON array of strings. 
-        Example: ["Apple", "Banana", "Cherry"]`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING }
-          }
-        }
+      const response = await fetch('/api/ai/generate-spelling', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: newSpellingCategory })
       });
 
-      const words = JSON.parse(response.text);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate words");
+      }
+
+      const words = await response.json();
       
       await addDoc(collection(db, 'spelling_categories'), {
         name: newSpellingCategory,
@@ -508,9 +530,20 @@ export const TeacherPanel: React.FC = () => {
 
       toast.success(language === 'en' ? 'Category added with 10 words!' : '10 വാക്കുകളുമായി വിഭാഗം ചേർത്തു!');
       setNewSpellingCategory('');
-    } catch (error) {
+      announce(language === 'en' ? 'Words generated successfully' : 'വാക്കുകൾ വിജയകരമായി നിർമ്മിച്ചു');
+    } catch (error: any) {
       console.error("AI Spelling Generation Error:", error);
-      toast.error("Failed to generate words");
+      let errorMsg = language === 'en' ? 'Failed to generate words' : 'വാക്കുകൾ നിർമ്മിക്കാൻ സാധിച്ചില്ല';
+      
+      if (error.message?.includes('PERMISSION_DENIED')) {
+        errorMsg = language === 'en' ? "Permission denied. Please check Firestore rules." : "അനുമതി നിഷേധിക്കപ്പെട്ടു. ഫയർബേസ് സെറ്റിങ്‌സ് പരിശോധിക്കുക.";
+      } else if (error.message?.includes('SAFETY')) {
+        errorMsg = language === 'en' ? "Content flagged by safety filters." : "സുരക്ഷാ കാരണങ്ങളാൽ ഈ ടെക്സ്റ്റ് പ്രോസസ്സ് ചെയ്യാൻ കഴിയില്ല.";
+      } else if (error.message) {
+        errorMsg += `: ${error.message}`;
+      }
+      
+      toast.error(errorMsg);
     } finally {
       setGeneratingSpellingWords(false);
     }
@@ -729,47 +762,21 @@ export const TeacherPanel: React.FC = () => {
     }
 
     setGeneratingQuiz(true);
+    announce(language === 'en' ? 'Generating quiz questions...' : 'ക്വിസ് ചോദ്യങ്ങൾ നിർമ്മിക്കുന്നു...');
+    
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('Gemini API key is not configured. Please check your environment variables.');
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Generate a 5-question multiple choice exam in Malayalam based on this text: "${textContent}". 
-        The questions should be clear and suitable for visually impaired students learning computers.
-        Return ONLY a JSON array where each object has "question" (string in Malayalam), "options" (array of exactly 3 strings in Malayalam), and "correctAnswer" (number index 0-2). 
-        Ensure the Malayalam is natural and grammatically correct.
-        Ensure the output is a valid JSON array and nothing else.`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                question: { type: Type.STRING },
-                options: { 
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING },
-                  minItems: 3,
-                  maxItems: 3
-                },
-                correctAnswer: { type: Type.INTEGER }
-              },
-              required: ["question", "options", "correctAnswer"]
-            }
-          }
-        }
+      const response = await fetch('/api/ai/generate-quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ textContent, language })
       });
 
-      if (!response.text) {
-        throw new Error('Empty response from AI');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate quiz");
       }
 
-      const generated = JSON.parse(response.text.trim());
+      const generated = await response.json();
       if (Array.isArray(generated) && generated.length > 0) {
         setQuizQuestions(generated);
         toast.success(language === 'en' ? 'Quiz generated successfully!' : 'ക്വിസ് നിർമ്മിച്ചു!');
@@ -780,8 +787,8 @@ export const TeacherPanel: React.FC = () => {
       console.error("AI Quiz Generation Error Details:", error);
       const errorMessage = error.message || 'Unknown error occurred';
       toast.error(language === 'en' 
-        ? `Failed to generate quiz: ${errorMessage}. Please check your Gemini API key in settings.` 
-        : `ക്വിസ് നിർമ്മിക്കാൻ സാധിച്ചില്ല: ${errorMessage}. സെറ്റിങ്‌സിൽ Gemini API key ഉണ്ടെന്ന് ഉറപ്പുവരുത്തുക.`);
+        ? `Failed to generate quiz: ${errorMessage}` 
+        : `ക്വിസ് നിർമ്മിക്കാൻ സാധിച്ചില്ല: ${errorMessage}`);
     } finally {
       setGeneratingQuiz(false);
     }
@@ -794,7 +801,12 @@ export const TeacherPanel: React.FC = () => {
       const quizzesSnapshot = await getDocs(collection(db, 'quizzes'));
       let allQuestions: any[] = [];
       quizzesSnapshot.docs.forEach(doc => {
-        allQuestions = [...allQuestions, ...doc.data().questions];
+        const data = doc.data();
+        const questionsWithIds = (data.questions || []).map((q: any, i: number) => ({
+          ...q,
+          id: q.id || `${doc.id}_${i}`
+        }));
+        allQuestions = [...allQuestions, ...questionsWithIds];
       });
 
       if (allQuestions.length === 0) {
@@ -878,50 +890,18 @@ export const TeacherPanel: React.FC = () => {
   const handleSeedAILessons = async () => {
     setSeedingLessons(true);
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) throw new Error('Gemini API key missing');
-
-      const ai = new GoogleGenAI({ apiKey });
-      const prompt = `Generate 3 high-quality computer lessons for visually impaired students in ${language === 'en' ? 'English' : 'Malayalam'}.
-      Topics: 1. Keyboard Basics, 2. Desktop Navigation, 3. Using Screen Readers.
-      For each lesson, provide:
-      - title
-      - category (e.g., 'Basics')
-      - textContent (Detailed, descriptive text that explains concepts clearly for someone who cannot see the screen)
-      - quiz (5 multiple choice questions with 3 options each and correct index)
-      Return as a JSON array of objects.`;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING },
-                category: { type: Type.STRING },
-                textContent: { type: Type.STRING },
-                quiz: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      question: { type: Type.STRING },
-                      options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                      correctAnswer: { type: Type.INTEGER }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
+      const response = await fetch('/api/ai/seed-lessons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language })
       });
 
-      const generatedLessons = JSON.parse(response.text || '[]');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to seed AI lessons");
+      }
+
+      const generatedLessons = await response.json();
       for (const lesson of generatedLessons) {
         const docRef = await addDoc(collection(db, 'lessons'), {
           title: lesson.title,
@@ -1349,15 +1329,26 @@ export const TeacherPanel: React.FC = () => {
               </h3>
               <p className="text-slate-600 dark:text-slate-400 mb-6">
                 {language === 'en' 
-                  ? 'Paste your questions and answers below, and AI will automatically format them into exam questions.' 
-                  : 'ചോദ്യങ്ങളും ഉത്തരങ്ങളും താഴെ പേസ്റ്റ് ചെയ്യുക, AI അവയെ പരീക്ഷാ ചോദ്യങ്ങളായി മാറ്റും.'}
+                  ? 'Paste your questions and answers below, and AI will automatically format them into exam questions. For very large exams (50+ questions), you can paste them in parts for better results.' 
+                  : 'ചോദ്യങ്ങളും ഉത്തരങ്ങളും താഴെ പേസ്റ്റ് ചെയ്യുക, AI അവയെ പരീക്ഷാ ചോദ്യങ്ങളായി മാറ്റും. 50-ൽ കൂടുതൽ ചോദ്യങ്ങൾ ഉണ്ടെങ്കിൽ കുറച്ചു ചോദ്യങ്ങൾ വീതം പരീക്ഷിക്കുന്നത് നന്നായിരിക്കും.'}
               </p>
-              <textarea
-                value={aiExamInput}
-                onChange={(e) => setAiExamInput(e.target.value)}
-                placeholder={t.pasteQuestions}
-                className="w-full h-48 p-6 rounded-2xl border-2 border-slate-200 focus:ring-4 focus:ring-indigo-400 outline-none dark:bg-slate-800 dark:border-slate-700 mb-6 text-lg"
-              />
+              <div className="relative">
+                <textarea
+                  value={aiExamInput}
+                  onChange={(e) => setAiExamInput(e.target.value)}
+                  placeholder={t.pasteQuestions}
+                  className="w-full h-64 p-6 rounded-2xl border-2 border-slate-200 focus:ring-4 focus:ring-indigo-400 outline-none dark:bg-slate-800 dark:border-slate-700 mb-6 text-lg"
+                />
+                {aiExamInput && (
+                  <button
+                    onClick={() => setAiExamInput('')}
+                    className="absolute top-4 right-4 p-2 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 text-slate-500"
+                    title="Clear"
+                  >
+                    <X size={20} />
+                  </button>
+                )}
+              </div>
               <button
                 onClick={handleAIGenerateExam}
                 disabled={generatingAIExam}
@@ -1366,6 +1357,56 @@ export const TeacherPanel: React.FC = () => {
                 {generatingAIExam ? <Loader2 className="animate-spin" /> : <Sparkles />}
                 {t.aiGenerateExam}
               </button>
+
+              {quizQuestions.length > 0 && quizQuestions[0].question && activeTab === 'exams' && (
+                <div className="mt-8 space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                  <div className="flex justify-between items-center">
+                    <h4 className="text-xl font-bold flex items-center gap-2">
+                      <ClipboardCheck className="text-indigo-600" />
+                      {t.generatedQuestionsPreview}
+                    </h4>
+                    <span className="bg-indigo-100 text-indigo-600 px-3 py-1 rounded-full text-sm font-bold">
+                      {quizQuestions.length} {t.questions}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-4 max-h-[400px] overflow-y-auto p-4 bg-white dark:bg-slate-800 rounded-2xl border-2 border-indigo-100 dark:border-indigo-900/30">
+                    {quizQuestions.map((q, i) => (
+                      <div key={i} className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <p className="font-bold text-lg mb-3">{i + 1}. {q.question}</p>
+                        <div className="grid gap-2">
+                          {q.options.map((opt: string, oi: number) => (
+                            <div 
+                              key={oi} 
+                              className={`p-2 rounded-lg border ${oi === q.correctAnswer ? 'bg-green-50 border-green-200 text-green-700 font-bold dark:bg-green-900/20 dark:border-green-800' : 'bg-white border-slate-100 dark:bg-slate-800 dark:border-slate-700'}`}
+                            >
+                              {String.fromCharCode(65 + oi)}) {opt}
+                              {oi === q.correctAnswer && <span className="ml-2 text-xs uppercase tracking-widest">({t.correct})</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-4">
+                    <button
+                      onClick={() => setQuizQuestions([{ question: '', options: ['', '', ''], correctAnswer: 0 }])}
+                      className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all dark:bg-slate-800 dark:text-slate-400"
+                    >
+                      {t.cancel}
+                    </button>
+                    <button
+                      onClick={handleSaveToQuestionPool}
+                      disabled={loading}
+                      className="flex-[2] py-4 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {loading ? <Loader2 className="animate-spin" /> : <Save size={20} />}
+                      {t.saveToPool}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl border-2 border-slate-100 dark:border-slate-800">
