@@ -19,7 +19,10 @@ const A11yContext = createContext<A11yContextType | undefined>(undefined);
 export const A11yProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [highContrast, setHighContrast] = useState(false);
   const [language, setLanguage] = useState<Language>('en');
-  const [announcement, setAnnouncement] = useState<{ message: string; priority: 'polite' | 'assertive' }>({ message: '', priority: 'polite' });
+  const [announcement1, setAnnouncement1] = useState('');
+  const [announcement2, setAnnouncement2] = useState('');
+  const [activeRegion, setActiveRegion] = useState(1);
+  const [priority, setPriority] = useState<'polite' | 'assertive'>('polite');
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceURI, setSelectedVoiceURI] = useState<string>(localStorage.getItem('selectedVoiceURI') || '');
 
@@ -48,10 +51,17 @@ export const A11yProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const toggleHighContrast = () => setHighContrast(prev => !prev);
 
-  const announce = (message: string, priority: 'polite' | 'assertive' = 'polite') => {
-    setAnnouncement({ message, priority });
-    // Clear after a short delay to allow re-announcing same message
-    setTimeout(() => setAnnouncement({ message: '', priority: 'polite' }), 1000);
+  const announce = (message: string, p: 'polite' | 'assertive' = 'polite') => {
+    setPriority(p);
+    if (activeRegion === 1) {
+      setAnnouncement2('');
+      setAnnouncement1(message);
+      setActiveRegion(2);
+    } else {
+      setAnnouncement1('');
+      setAnnouncement2(message);
+      setActiveRegion(1);
+    }
   };
 
   const speak = (text: string, rate: number = 0.9) => {
@@ -80,12 +90,18 @@ export const A11yProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }}>
       <div className={highContrast ? 'high-contrast' : ''}>
         <div 
-          id="screenReader"
-          aria-live={announcement.priority} 
+          aria-live={priority} 
           className="sr-only" 
           role="status"
         >
-          {announcement.message}
+          {announcement1}
+        </div>
+        <div 
+          aria-live={priority} 
+          className="sr-only" 
+          role="status"
+        >
+          {announcement2}
         </div>
         {children}
       </div>

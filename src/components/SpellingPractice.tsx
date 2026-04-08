@@ -82,7 +82,8 @@ export const SpellingPractice: React.FC<{ onBack: () => void }> = ({ onBack }) =
 
   const speakWord = (word: string) => {
     speak(word, 0.8);
-    announce(`${t.typeTheWord}: ${word}. ${t.repeatWord}`);
+    const msg = `${t.typeTheWord}: ${word}. ${language === 'en' ? 'Press Space to repeat' : 'വാക്ക് വീണ്ടും കേൾക്കാൻ സ്പേസ് അമർത്തുക'}`;
+    announce(msg, 'assertive');
   };
 
   const speakSpelling = (word: string) => {
@@ -101,7 +102,9 @@ export const SpellingPractice: React.FC<{ onBack: () => void }> = ({ onBack }) =
         if (remaining > 0) {
           setPracticeCount(remaining);
           setInputValue('');
-          announce(`${t.correct}. ${t.practiceRemaining} ${remaining}`);
+          const msg = `${t.correct}. ${t.practiceRemaining} ${remaining}`;
+          announce(msg, 'assertive');
+          speak(msg, 1);
           speakWord(currentWord.word);
         } else {
           setIsErrorMode(false);
@@ -116,11 +119,14 @@ export const SpellingPractice: React.FC<{ onBack: () => void }> = ({ onBack }) =
       if (!isErrorMode) {
         setIsErrorMode(true);
         setPracticeCount(3);
-        announce(t.wrongSpellingPractice);
+        announce(t.wrongSpellingPractice, 'assertive');
+        speak(t.wrongSpellingPractice, 1);
         speakSpelling(currentWord.word);
         setInputValue('');
       } else {
-        announce(`${t.incorrect}. ${t.practiceRemaining} ${practiceCount}`);
+        const msg = `${t.incorrect}. ${t.practiceRemaining} ${practiceCount}`;
+        announce(msg, 'assertive');
+        speak(msg, 1);
         speakSpelling(currentWord.word);
         setInputValue('');
       }
@@ -131,9 +137,11 @@ export const SpellingPractice: React.FC<{ onBack: () => void }> = ({ onBack }) =
     if (currentIndex < filteredWords.length - 1) {
       setCurrentIndex(currentIndex + 1);
       setInputValue('');
-      announce(t.wellDone);
+      announce(t.wellDone, 'assertive');
+      speak(t.wellDone, 1);
     } else {
-      announce(t.quizCompleted);
+      announce(t.quizCompleted, 'assertive');
+      speak(t.quizCompleted, 1);
       toast.success(t.quizCompleted);
       setCurrentCategory(null);
       setCurrentIndex(0);
@@ -260,6 +268,7 @@ export const SpellingPractice: React.FC<{ onBack: () => void }> = ({ onBack }) =
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 autoFocus
+                aria-label={`${t.typeTheWord}: ${currentWord?.word}. ${language === 'en' ? 'Press Space to repeat' : 'വാക്ക് വീണ്ടും കേൾക്കാൻ സ്പേസ് അമർത്തുക'}`}
                 className="w-full p-6 text-4xl font-black text-center border-4 border-slate-100 rounded-2xl focus:border-blue-500 outline-none dark:bg-slate-800 dark:border-slate-700 uppercase tracking-widest"
                 placeholder="TYPE HERE"
                 autoComplete="off"

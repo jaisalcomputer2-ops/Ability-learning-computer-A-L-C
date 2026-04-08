@@ -48,6 +48,16 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   ];
 
   useEffect(() => {
+    if (currentGame && !showGameOver) {
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 100);
+    }
+  }, [currentGame, showGameOver]);
+
+  useEffect(() => {
     let timer: NodeJS.Timeout;
     if (isActive && timeLeft > 0) {
       timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
@@ -55,7 +65,7 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
       setIsActive(false);
       setShowGameOver(true);
       const finalMsg = `${t.quizCompleted}. ${t.score}: ${score}`;
-      announce(finalMsg);
+      announce(finalMsg, 'assertive');
       speak(finalMsg, 1);
       toast.success(finalMsg);
     }
@@ -112,24 +122,25 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   const speakKey = (key: string) => {
     const msg = `${language === 'en' ? 'Find key' : 'കീ കണ്ടെത്തുക'}: ${key}`;
     speak(msg, 1);
-    announce(msg);
+    announce(msg, 'assertive');
   };
 
   const speakQuestKey = (key: string) => {
-    const msg = `${t.findTheLetter} ${key.toUpperCase()}`;
+    const msg = `${t.findTheLetter} ${key.toUpperCase()}. ${language === 'en' ? 'Press Space to repeat' : 'വാക്ക് വീണ്ടും കേൾക്കാൻ സ്പേസ് അമർത്തുക'}`;
     speak(msg, 1.1);
-    announce(msg);
+    announce(msg, 'assertive');
   };
 
   const speakWord = (word: string) => {
+    const msg = `${language === 'en' ? 'Type word' : 'വാക്ക് ടൈപ്പ് ചെയ്യുക'}: ${word}. ${language === 'en' ? 'Press Space to repeat' : 'വാക്ക് വീണ്ടും കേൾക്കാൻ സ്പേസ് അമർത്തുക'}`;
     speak(word, 0.9);
-    announce(`${language === 'en' ? 'Type word' : 'വാക്ക് ടൈപ്പ് ചെയ്യുക'}: ${word}`);
+    announce(msg, 'assertive');
   };
 
   const speakAnimal = (name: string) => {
-    const msg = `${t.spellTheAnimal}: ${name}`;
+    const msg = `${t.spellTheAnimal}: ${name}. ${language === 'en' ? 'Press Space to repeat' : 'വാക്ക് വീണ്ടും കേൾക്കാൻ സ്പേസ് അമർത്തുക'}`;
     speak(msg, 1);
-    announce(msg);
+    announce(msg, 'assertive');
   };
 
   const animalSounds = useRef<Record<string, Howl>>({});
@@ -154,6 +165,14 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (!isActive) return;
     
+    // Space to repeat
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (currentGame === 'key-finder') speakKey(targetKey);
+      if (currentGame === 'letter-quest') speakQuestKey(targetKey);
+      return;
+    }
+
     if (currentGame === 'key-finder' || currentGame === 'letter-quest') {
       if (e.key.toLowerCase() === targetKey.toLowerCase()) {
         setScore(prev => prev + 1);
@@ -201,7 +220,9 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
         setScore(prev => prev + 1);
         setIsCorrect(true);
         playAnimalSound(currentAnimal.name);
-        announce(`${t.correct}! ${t.listenToTheSound} ${currentAnimal.name}`);
+        const successMsg = `${t.correct}! ${t.listenToTheSound} ${currentAnimal.name}`;
+        announce(successMsg, 'assertive');
+        speak(successMsg, 1);
         
         setTimeout(() => {
           setIsCorrect(false);
@@ -209,11 +230,21 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
           const nextAnimal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
           setCurrentAnimal(nextAnimal);
           speakAnimal(nextAnimal.name);
-        }, 3000);
+        }, 4000);
       } else {
-        speak(language === 'en' ? "Wrong spelling, try again" : "തെറ്റായ സ്പെല്ലിംഗ്, വീണ്ടും ശ്രമിക്കുക", 1);
+        const errorMsg = language === 'en' ? "Wrong spelling, try again" : "തെറ്റായ സ്പെല്ലിംഗ്, വീണ്ടും ശ്രമിക്കുക";
+        speak(errorMsg, 1);
+        announce(errorMsg, 'assertive');
         setInputValue('');
       }
+    }
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.code === 'Space' && !inputValue) {
+      e.preventDefault();
+      if (currentGame === 'typing-speed') speakWord(targetWord);
+      if (currentGame === 'animal-quest') speakAnimal(currentAnimal.name);
     }
   };
 
@@ -415,8 +446,10 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
                   type="text"
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={handleInputKeyDown}
                   autoFocus
                   disabled={isCorrect}
+                  aria-label={`${t.spellTheAnimal}: ${currentAnimal?.name}. ${language === 'en' ? 'Press Space to repeat' : 'വാക്ക് വീണ്ടും കേൾക്കാൻ സ്പേസ് അമർത്തുക'}`}
                   className={`w-full p-8 text-5xl font-black text-center border-8 rounded-[2.5rem] outline-none dark:bg-slate-800 uppercase tracking-[0.3em] transition-all duration-300 ${isCorrect ? 'bg-green-50 border-green-500 text-green-600 shadow-[0_0_40px_rgba(34,197,94,0.3)]' : 'bg-white border-slate-100 focus:border-green-400 dark:border-slate-700 shadow-xl'}`}
                   placeholder="???"
                   autoComplete="off"
@@ -451,7 +484,9 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleInputKeyDown}
                 autoFocus
+                aria-label={`${language === 'en' ? 'Type word' : 'വാക്ക് ടൈപ്പ് ചെയ്യുക'}: ${targetWord}. ${language === 'en' ? 'Press Space to repeat' : 'വാക്ക് വീണ്ടും കേൾക്കാൻ സ്പേസ് അമർത്തുക'}`}
                 className="w-full p-6 text-4xl font-black text-center border-4 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none dark:bg-slate-800 dark:border-slate-700 uppercase tracking-widest"
                 placeholder="TYPE HERE"
                 autoComplete="off"

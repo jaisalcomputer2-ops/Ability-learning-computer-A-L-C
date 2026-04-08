@@ -18,7 +18,7 @@ export const ExamSystem: React.FC<ExamSystemProps> = ({ studentUser }) => {
   const [loading, setLoading] = useState(false);
   const [questions, setQuestions] = useState<any[]>([]);
   const [assignedExam, setAssignedExam] = useState<any>(null);
-  const { t, announce, language } = useA11y();
+  const { t, announce, speak, language } = useA11y();
 
   useEffect(() => {
     const checkAssignedExam = async () => {
@@ -49,13 +49,16 @@ export const ExamSystem: React.FC<ExamSystemProps> = ({ studentUser }) => {
   const handleStartAssignedExam = () => {
     if (assignedExam) {
       setCurrentStep('exam');
-      announce(t.examInstructions);
+      announce(t.examInstructions, 'assertive');
+      speak(t.examInstructions, 1);
     }
   };
 
   const handleLogin = async () => {
     if (!code.trim()) {
       toast.error(t.enterCode);
+      announce(t.enterCode, 'assertive');
+      speak(t.enterCode, 1);
       return;
     }
 
@@ -89,10 +92,13 @@ export const ExamSystem: React.FC<ExamSystemProps> = ({ studentUser }) => {
             ]);
           }
           setCurrentStep('exam');
-          announce(t.examInstructions);
+          announce(t.examInstructions, 'assertive');
+          speak(t.examInstructions, 1);
         }
       } else {
         toast.error(t.invalidCode);
+        announce(t.invalidCode, 'assertive');
+        speak(t.invalidCode, 1);
       }
     } catch (error) {
       console.error("Login Error:", error);
@@ -161,7 +167,9 @@ export const ExamSystem: React.FC<ExamSystemProps> = ({ studentUser }) => {
       }
 
       setCurrentStep('result');
-      announce(`${t.examCompleted}. ${t.score}: ${finalScore}/${questions.length}`);
+      const resultMsg = `${t.examCompleted}. ${t.score}: ${finalScore}/${questions.length}`;
+      announce(resultMsg, 'assertive');
+      speak(resultMsg, 1);
     } catch (error) {
       console.error("Submit Error:", error);
       toast.error("Failed to submit exam");
@@ -249,14 +257,14 @@ export const ExamSystem: React.FC<ExamSystemProps> = ({ studentUser }) => {
               <div className="space-y-10">
                 {questions.map((q, idx) => (
                   <fieldset key={q.id} className="space-y-4">
-                    <legend className="text-2xl font-bold mb-4 outline-none focus:ring-2 focus:ring-blue-400 rounded" tabIndex={0}>
+                    <legend className="text-2xl font-bold mb-4 outline-none focus:ring-2 focus:ring-blue-400 rounded" tabIndex={0} aria-label={`${t.question} ${idx + 1}: ${q.text || q.question}`}>
                       {idx + 1}. {q.text || q.question}
                     </legend>
-                    <div className="grid gap-3">
-                      {q.options.map((opt) => (
+                    <div className="grid gap-3" role="radiogroup">
+                      {q.options.map((opt, optIdx) => (
                         <label
                           key={opt}
-                          className={`flex items-center gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                          className={`flex items-center gap-4 p-4 rounded-2xl border-2 cursor-pointer transition-all outline-none focus-within:ring-4 focus-within:ring-blue-400 ${
                             answers[q.id] === opt
                               ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20'
                               : 'border-slate-100 dark:border-slate-800 hover:border-blue-200'
@@ -267,10 +275,16 @@ export const ExamSystem: React.FC<ExamSystemProps> = ({ studentUser }) => {
                             name={q.id}
                             value={opt}
                             checked={answers[q.id] === opt}
-                            onChange={() => setAnswers(prev => ({ ...prev, [q.id]: opt }))}
+                            onChange={() => {
+                              setAnswers(prev => ({ ...prev, [q.id]: opt }));
+                              announce(`${t.option} ${optIdx + 1} ${t.selected}: ${opt}`, 'assertive');
+                            }}
                             className="w-6 h-6 text-blue-600"
                           />
-                          <span className="text-xl font-medium">{opt}</span>
+                          <span className="text-xl font-medium">
+                            <span className="sr-only">{t.option} {optIdx + 1}: </span>
+                            {opt}
+                          </span>
                         </label>
                       ))}
                     </div>

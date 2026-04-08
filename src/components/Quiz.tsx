@@ -23,7 +23,7 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete, studentName =
   const [showResult, setShowResult] = useState(false);
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
-  const { announce, t, language } = useA11y();
+  const { announce, speak, t, language } = useA11y();
   const [isFocused, setIsFocused] = useState(false);
 
   const [focusedOptionIndex, setFocusedOptionIndex] = useState<number>(-1);
@@ -68,6 +68,17 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete, studentName =
   useEffect(() => {
     setFocusedOptionIndex(-1);
     setSelectedOptionIndex(null);
+    if (questions[currentQuestion]) {
+      const msg = `${t.question} ${currentQuestion + 1}: ${questions[currentQuestion].question}. ${t.chooseOneAnswer}`;
+      announce(msg, 'assertive');
+      speak(msg, 1);
+      
+      // Focus the question text for screen readers
+      setTimeout(() => {
+        const qText = document.getElementById('questionText');
+        if (qText) qText.focus();
+      }, 500);
+    }
   }, [currentQuestion]);
 
   const correctSound = new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3'] });
@@ -89,12 +100,15 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete, studentName =
       setScore(prev => prev + 1);
       setFeedback('correct');
       correctSound.play();
-      announce(t.correct, 'assertive');
+      const successMsg = `${t.correct}! ${language === 'en' ? 'Moving to next question' : 'അടുത്ത ചോദ്യത്തിലേക്ക് പോകുന്നു'}`;
+      announce(successMsg, 'assertive');
+      speak(successMsg, 1);
     } else {
       setFeedback('wrong');
       wrongSound.play();
       const wrongMsg = `${t.incorrect}. ${t.correctAnswer}: ${questions[currentQuestion].options[questions[currentQuestion].correctAnswer]}`;
       announce(wrongMsg, 'assertive');
+      speak(wrongMsg, 1);
     }
 
     setTimeout(() => {
@@ -102,14 +116,13 @@ export const Quiz: React.FC<QuizProps> = ({ questions, onComplete, studentName =
       setSelectedOptionIndex(null);
       if (currentQuestion + 1 < questions.length) {
         setCurrentQuestion(prev => prev + 1);
-        const nextQ = questions[currentQuestion + 1];
-        announce(`${t.question} ${currentQuestion + 2}: ${nextQ.question}. ${t.chooseOneAnswer}`, 'assertive');
       } else {
         setShowResult(true);
         const finalScore = score + (isCorrect ? 1 : 0);
         const resultMsg = `${t.quizCompleted}. ${t.score}: ${finalScore} / ${questions.length}. ${finalScore < 3 ? t.practiceNeeded : t.goodJob}`;
         onComplete?.(finalScore);
         announce(resultMsg, 'assertive');
+        speak(resultMsg, 1);
       }
     }, 3000);
   };
