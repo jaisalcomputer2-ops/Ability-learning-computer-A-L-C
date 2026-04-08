@@ -131,14 +131,31 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
     }, 6000);
   };
 
+  const getKeyName = (key: string) => {
+    const names: Record<string, { en: string; ml: string }> = {
+      ';': { en: 'Semicolon', ml: 'സെമി കോളൻ' },
+      ',': { en: 'Comma', ml: 'കോമ' },
+      '.': { en: 'Full stop', ml: 'ഫുൾ സ്റ്റോപ്പ്' },
+      '/': { en: 'Slash', ml: 'സ്ലാഷ്' },
+      ' ': { en: 'Space', ml: 'സ്പേസ്' },
+      '[': { en: 'Left bracket', ml: 'ലെഫ്റ്റ് ബ്രാക്കറ്റ്' },
+      ']': { en: 'Right bracket', ml: 'റൈറ്റ് ബ്രാക്കറ്റ്' },
+      '\\': { en: 'Backslash', ml: 'ബാക്ക് സ്ലാഷ്' },
+      '\'': { en: 'Apostrophe', ml: 'അപ്പോസ്ട്രോഫി' },
+    };
+    return names[key]?.[language] || key.toUpperCase();
+  };
+
   const speakKey = (key: string) => {
-    const msg = `${language === 'en' ? 'Find key' : 'കീ കണ്ടെത്തുക'}: ${key}`;
+    const keyName = getKeyName(key);
+    const msg = `${language === 'en' ? 'Find key' : 'കീ കണ്ടെത്തുക'}: ${keyName}`;
     speak(msg, 1);
     announce(msg, 'assertive');
   };
 
   const speakQuestKey = (key: string) => {
-    const msg = `${t.findTheLetter} ${key.toUpperCase()}. ${language === 'en' ? 'Press Space to repeat' : 'വാക്ക് വീണ്ടും കേൾക്കാൻ സ്പേസ് അമർത്തുക'}`;
+    const keyName = getKeyName(key);
+    const msg = `${t.findTheLetter} ${keyName}. ${language === 'en' ? 'Press Space to repeat' : 'വാക്ക് വീണ്ടും കേൾക്കാൻ സ്പേസ് അമർത്തുക'}`;
     speak(msg, 1.1);
     announce(msg, 'assertive');
   };
