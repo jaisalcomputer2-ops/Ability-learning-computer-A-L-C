@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useA11y } from './A11yProvider';
-import { Keyboard, Zap, Target, ArrowLeft, RotateCcw, Volume2, ShieldCheck, Sparkles, Trophy } from 'lucide-react';
+import { Keyboard, Zap, Target, ArrowLeft, RotateCcw, Volume2, ShieldCheck, Sparkles, Trophy, HelpCircle, X as CloseIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Howl } from 'howler';
 
 export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const { t, language, announce, speak } = useA11y();
   const [currentGame, setCurrentGame] = useState<'key-finder' | 'typing-speed' | 'letter-quest' | 'animal-quest' | null>(null);
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [targetKey, setTargetKey] = useState('');
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(30);
@@ -20,6 +21,33 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   const [practiceCount, setPracticeCount] = useState(0);
   const [isErrorMode, setIsErrorMode] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const GAME_INSTRUCTIONS = {
+    'key-finder': {
+      title: language === 'en' ? 'How to Play: Key Finder' : 'എങ്ങനെ കളിക്കാം: കീ ഫൈൻഡർ',
+      objective: language === 'en' ? 'Find and press the requested key as fast as you can.' : 'പറയുന്ന കീ എത്രയും വേഗം കണ്ടെത്തി അമർത്തുക.',
+      controls: language === 'en' ? 'Use your keyboard to press the matching key.' : 'കീബോർഡ് ഉപയോഗിച്ച് ശരിയായ കീ അമർത്തുക.',
+      scoring: language === 'en' ? 'Each correct key adds 1 point to your score.' : 'ഓരോ ശരിയായ കീക്കും 1 പോയിന്റ് ലഭിക്കും.'
+    },
+    'typing-speed': {
+      title: language === 'en' ? 'How to Play: Typing Speed' : 'എങ്ങനെ കളിക്കാം: ടൈപ്പിംഗ് സ്പീഡ്',
+      objective: language === 'en' ? 'Type the words shown on the screen accurately.' : 'സ്ക്രീനിൽ കാണുന്ന വാക്കുകൾ കൃത്യമായി ടൈപ്പ് ചെയ്യുക.',
+      controls: language === 'en' ? 'Type the word and press Enter to submit.' : 'വാക്ക് ടൈപ്പ് ചെയ്ത് എന്റർ (Enter) അമർത്തുക.',
+      scoring: language === 'en' ? 'Each correctly typed word adds 1 point.' : 'ഓരോ ശരിയായ വാക്കിനും 1 പോയിന്റ് ലഭിക്കും.'
+    },
+    'letter-quest': {
+      title: language === 'en' ? 'How to Play: Letter Quest' : 'എങ്ങനെ കളിക്കാം: ലെറ്റർ ക്വസ്റ്റ്',
+      objective: language === 'en' ? 'Practice specific keyboard rows to improve accuracy.' : 'കീബോർഡിലെ പ്രത്യേക വരികൾ പരിശീലിക്കുക.',
+      controls: language === 'en' ? 'Press the key corresponding to the letter shown.' : 'കാണിക്കുന്ന അക്ഷരത്തിന് അനുയോജ്യമായ കീ അമർത്തുക.',
+      scoring: language === 'en' ? 'Each correct letter adds 1 point.' : 'ഓരോ ശരിയായ അക്ഷരത്തിനും 1 പോയിന്റ് ലഭിക്കും.'
+    },
+    'animal-quest': {
+      title: language === 'en' ? 'How to Play: Animal Quest' : 'എങ്ങനെ കളിക്കാം: ആനിമൽ ക്വസ്റ്റ്',
+      objective: language === 'en' ? 'Identify the animal and spell its name correctly.' : 'മൃഗത്തെ തിരിച്ചറിഞ്ഞ് അതിന്റെ പേര് കൃത്യമായി ടൈപ്പ് ചെയ്യുക.',
+      controls: language === 'en' ? 'Type the name. Space: Repeat name, R: Hear spelling.' : 'പേര് ടൈപ്പ് ചെയ്യുക. സ്പേസ്: പേര് വീണ്ടും കേൾക്കാം, R: സ്പെല്ലിംഗ് കേൾക്കാം.',
+      scoring: language === 'en' ? 'Each correct spelling adds 1 point. Errors require 3 practice attempts.' : 'ഓരോ ശരിയായ സ്പെല്ലിംഗിനും 1 പോയിന്റ്. തെറ്റിയാൽ 3 തവണ പരിശീലിക്കണം.'
+    }
+  };
 
   const WORDS = ["apple", "banana", "cherry", "date", "elderberry", "fig", "grape", "honeydew", "kiwi", "lemon"];
   const KEYS = "abcdefghijklmnopqrstuvwxyz0123456789".split("");
@@ -370,59 +398,111 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
         </div>
 
         <div className="grid sm:grid-cols-2 gap-8">
-          <button
-            onClick={() => startLetterQuest(1)}
-            className="p-10 bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-900/10 dark:to-orange-900/10 rounded-[2.5rem] border-2 border-yellow-100 dark:border-yellow-800 shadow-xl hover:scale-105 transition-all text-left group"
-          >
-            <div className="w-16 h-16 bg-yellow-400 rounded-2xl flex items-center justify-center text-white mb-8 shadow-lg group-hover:rotate-12 transition-transform">
-              <Sparkles size={40} />
-            </div>
-            <h2 className="text-3xl font-black mb-4 text-orange-700 dark:text-orange-400">{t.letterQuest}</h2>
-            <p className="text-lg text-slate-600 dark:text-slate-400 leading-relaxed">
-              {t.letterQuestDesc}
-            </p>
-          </button>
+          <div className="relative group">
+            <button
+              onClick={() => startLetterQuest(1)}
+              className="w-full p-10 bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-900/10 dark:to-orange-900/10 rounded-[2.5rem] border-2 border-yellow-100 dark:border-yellow-800 shadow-xl hover:scale-105 transition-all text-left"
+            >
+              <div className="w-16 h-16 bg-yellow-400 rounded-2xl flex items-center justify-center text-white mb-8 shadow-lg group-hover:rotate-12 transition-transform">
+                <Sparkles size={40} />
+              </div>
+              <h2 className="text-3xl font-black mb-4 text-orange-700 dark:text-orange-400">{t.letterQuest}</h2>
+              <p className="text-lg text-slate-600 dark:text-slate-400 leading-relaxed">
+                {t.letterQuestDesc}
+              </p>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setCurrentGame('letter-quest');
+                setShowHowToPlay(true);
+              }}
+              className="absolute top-6 right-6 p-3 bg-white/80 dark:bg-slate-800/80 rounded-xl text-slate-400 hover:text-blue-600 transition-colors shadow-sm"
+              title={language === 'en' ? 'How to Play' : 'എങ്ങനെ കളിക്കാം'}
+            >
+              <HelpCircle size={24} />
+            </button>
+          </div>
 
-          <button
-            onClick={startAnimalQuest}
-            className="p-10 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-[2.5rem] border-2 border-green-100 dark:border-green-800 shadow-xl hover:scale-105 transition-all text-left group"
-          >
-            <div className="w-16 h-16 bg-green-500 rounded-2xl flex items-center justify-center text-white mb-8 shadow-lg group-hover:rotate-12 transition-transform">
-              <Volume2 size={40} />
-            </div>
-            <h2 className="text-3xl font-black mb-4 text-emerald-700 dark:text-emerald-400">{t.animalQuest}</h2>
-            <p className="text-lg text-slate-600 dark:text-slate-400 leading-relaxed">
-              {t.animalQuestDesc}
-            </p>
-          </button>
+          <div className="relative group">
+            <button
+              onClick={startAnimalQuest}
+              className="w-full p-10 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-[2.5rem] border-2 border-green-100 dark:border-green-800 shadow-xl hover:scale-105 transition-all text-left"
+            >
+              <div className="w-16 h-16 bg-green-500 rounded-2xl flex items-center justify-center text-white mb-8 shadow-lg group-hover:rotate-12 transition-transform">
+                <Volume2 size={40} />
+              </div>
+              <h2 className="text-3xl font-black mb-4 text-emerald-700 dark:text-emerald-400">{t.animalQuest}</h2>
+              <p className="text-lg text-slate-600 dark:text-slate-400 leading-relaxed">
+                {t.animalQuestDesc}
+              </p>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setCurrentGame('animal-quest');
+                setShowHowToPlay(true);
+              }}
+              className="absolute top-6 right-6 p-3 bg-white/80 dark:bg-slate-800/80 rounded-xl text-slate-400 hover:text-blue-600 transition-colors shadow-sm"
+              title={language === 'en' ? 'How to Play' : 'എങ്ങനെ കളിക്കാം'}
+            >
+              <HelpCircle size={24} />
+            </button>
+          </div>
 
-          <button
-            onClick={startKeyFinder}
-            className="p-10 bg-white dark:bg-slate-900 rounded-[2.5rem] border-2 border-slate-100 dark:border-slate-800 shadow-xl hover:border-blue-500 transition-all text-left group"
-          >
-            <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600 mb-8 group-hover:scale-110 transition-transform">
-              <Keyboard size={40} />
-            </div>
-            <h2 className="text-3xl font-black mb-4 group-hover:text-blue-600">{t.keyboardOrientation}</h2>
-            <p className="text-lg text-slate-500 leading-relaxed">
-              {language === 'en' ? 'Find and press the keys as fast as you can to improve muscle memory.' : 'കീബോർഡിലെ കീകൾ വേഗത്തിൽ കണ്ടെത്തി അമർത്തുക.'}
-            </p>
-          </button>
+          <div className="relative group">
+            <button
+              onClick={startKeyFinder}
+              className="w-full p-10 bg-white dark:bg-slate-900 rounded-[2.5rem] border-2 border-slate-100 dark:border-slate-800 shadow-xl hover:border-blue-500 transition-all text-left"
+            >
+              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600 mb-8 group-hover:scale-110 transition-transform">
+                <Keyboard size={40} />
+              </div>
+              <h2 className="text-3xl font-black mb-4 group-hover:text-blue-600">{t.keyboardOrientation}</h2>
+              <p className="text-lg text-slate-500 leading-relaxed">
+                {language === 'en' ? 'Find and press the keys as fast as you can to improve muscle memory.' : 'കീബോർഡിലെ കീകൾ വേഗത്തിൽ കണ്ടെത്തി അമർത്തുക.'}
+              </p>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setCurrentGame('key-finder');
+                setShowHowToPlay(true);
+              }}
+              className="absolute top-6 right-6 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl text-slate-400 hover:text-blue-600 transition-colors shadow-sm"
+              title={language === 'en' ? 'How to Play' : 'എങ്ങനെ കളിക്കാം'}
+            >
+              <HelpCircle size={24} />
+            </button>
+          </div>
 
-          <button
-            onClick={startTypingSpeed}
-            className="p-10 bg-white dark:bg-slate-900 rounded-[2.5rem] border-2 border-slate-100 dark:border-slate-800 shadow-xl hover:border-indigo-500 transition-all text-left group"
-          >
-            <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center text-indigo-600 mb-8 group-hover:scale-110 transition-transform">
-              <Zap size={40} />
-            </div>
-            <h2 className="text-3xl font-black mb-4 group-hover:text-indigo-600">
-              {language === 'en' ? 'Typing Speed' : 'ടൈപ്പിംഗ് സ്പീഡ്'}
-            </h2>
-            <p className="text-lg text-slate-500 leading-relaxed">
-              {language === 'en' ? 'Type the words you hear to increase your typing accuracy and speed.' : 'നിങ്ങൾ കേൾക്കുന്ന വാക്കുകൾ വേഗത്തിൽ ടൈപ്പ് ചെയ്യുക.'}
-            </p>
-          </button>
+          <div className="relative group">
+            <button
+              onClick={startTypingSpeed}
+              className="w-full p-10 bg-white dark:bg-slate-900 rounded-[2.5rem] border-2 border-slate-100 dark:border-slate-800 shadow-xl hover:border-indigo-500 transition-all text-left"
+            >
+              <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center text-indigo-600 mb-8 group-hover:scale-110 transition-transform">
+                <Zap size={40} />
+              </div>
+              <h2 className="text-3xl font-black mb-4 group-hover:text-indigo-600">
+                {language === 'en' ? 'Typing Speed' : 'ടൈപ്പിംഗ് സ്പീഡ്'}
+              </h2>
+              <p className="text-lg text-slate-500 leading-relaxed">
+                {language === 'en' ? 'Type the words you hear to increase your typing accuracy and speed.' : 'നിങ്ങൾ കേൾക്കുന്ന വാക്കുകൾ വേഗത്തിൽ ടൈപ്പ് ചെയ്യുക.'}
+              </p>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setCurrentGame('typing-speed');
+                setShowHowToPlay(true);
+              }}
+              className="absolute top-6 right-6 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl text-slate-400 hover:text-blue-600 transition-colors shadow-sm"
+              title={language === 'en' ? 'How to Play' : 'എങ്ങനെ കളിക്കാം'}
+            >
+              <HelpCircle size={24} />
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -431,15 +511,25 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="flex justify-between items-center mb-8">
-        <button
-          onClick={() => {
-            setCurrentGame(null);
-            setIsActive(false);
-          }}
-          className="flex items-center gap-2 text-xl font-bold text-blue-600 hover:underline"
-        >
-          <ArrowLeft /> {language === 'en' ? 'Exit Game' : 'ഗെയിമിൽ നിന്ന് പുറത്തുകടക്കുക'}
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => {
+              setCurrentGame(null);
+              setIsActive(false);
+            }}
+            className="flex items-center gap-2 text-xl font-bold text-blue-600 hover:underline"
+          >
+            <ArrowLeft /> {language === 'en' ? 'Exit Game' : 'ഗെയിമിൽ നിന്ന് പുറത്തുകടക്കുക'}
+          </button>
+          <button
+            onClick={() => setShowHowToPlay(true)}
+            className="flex items-center gap-2 text-lg font-bold text-slate-500 hover:text-slate-700 transition-colors"
+            title={language === 'en' ? 'How to Play' : 'എങ്ങനെ കളിക്കാം'}
+          >
+            <HelpCircle size={24} />
+            <span className="hidden sm:inline">{language === 'en' ? 'How to Play' : 'എങ്ങനെ കളിക്കാം'}</span>
+          </button>
+        </div>
         <div className="flex items-center gap-6">
           {(currentGame === 'letter-quest' || currentGame === 'animal-quest') && (
             <div className={`flex items-center gap-2 px-6 py-3 rounded-2xl border-2 shadow-sm ${currentGame === 'letter-quest' ? 'bg-orange-100 border-orange-200 text-orange-700' : 'bg-green-100 border-green-200 text-green-700'}`}>
@@ -610,6 +700,65 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
           </div>
         </div>
       </div>
+
+      {showHowToPlay && currentGame && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl border-4 border-blue-100 dark:border-blue-900/30 p-8 animate-in zoom-in duration-300">
+            <div className="flex justify-between items-center mb-8">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-2xl text-blue-600">
+                  <HelpCircle size={32} />
+                </div>
+                <h2 className="text-3xl font-black text-slate-800 dark:text-white">
+                  {GAME_INSTRUCTIONS[currentGame].title}
+                </h2>
+              </div>
+              <button 
+                onClick={() => setShowHowToPlay(false)}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+              >
+                <CloseIcon size={32} />
+              </button>
+            </div>
+
+            <div className="space-y-8">
+              <div className="space-y-2">
+                <h3 className="text-xl font-black text-blue-600 uppercase tracking-wider">
+                  {language === 'en' ? 'Objective' : 'ലക്ഷ്യം'}
+                </h3>
+                <p className="text-xl text-slate-600 dark:text-slate-400 leading-relaxed">
+                  {GAME_INSTRUCTIONS[currentGame].objective}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-xl font-black text-green-600 uppercase tracking-wider">
+                  {language === 'en' ? 'Controls' : 'നിയന്ത്രണങ്ങൾ'}
+                </h3>
+                <p className="text-xl text-slate-600 dark:text-slate-400 leading-relaxed">
+                  {GAME_INSTRUCTIONS[currentGame].controls}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-xl font-black text-orange-600 uppercase tracking-wider">
+                  {language === 'en' ? 'Scoring' : 'സ്കോറിംഗ്'}
+                </h3>
+                <p className="text-xl text-slate-600 dark:text-slate-400 leading-relaxed">
+                  {GAME_INSTRUCTIONS[currentGame].scoring}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowHowToPlay(false)}
+              className="w-full mt-10 py-5 bg-blue-600 text-white rounded-2xl text-2xl font-black hover:bg-blue-700 transition-all shadow-xl"
+            >
+              {language === 'en' ? 'Got it!' : 'മനസ്സിലായി!'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

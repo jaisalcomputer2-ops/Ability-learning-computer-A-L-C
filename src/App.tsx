@@ -4,7 +4,7 @@ import { auth, db } from './firebase';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, Timestamp, onSnapshot, getDocFromServer } from 'firebase/firestore';
 import { Toaster } from 'react-hot-toast';
-import { LogIn, LogOut, User, Settings, Accessibility, Sun, Moon, Languages, ShieldCheck, X, GraduationCap, Volume2 } from 'lucide-react';
+import { LogIn, LogOut, User, Settings, Accessibility, Sun, Moon, Languages, ShieldCheck, X, GraduationCap, Volume2, Download } from 'lucide-react';
 import { A11yProvider, useA11y } from './components/A11yProvider';
 import { handleKey } from './lib/utils';
 import { seedLessons } from './lib/seedData';
@@ -106,6 +106,8 @@ const AppContent: React.FC = () => {
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [appName, setAppName] = useState<string>('');
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBtn, setShowInstallBtn] = useState(false);
   const { 
     toggleHighContrast, 
     language, 
@@ -212,6 +214,30 @@ const AppContent: React.FC = () => {
     (window as any).goBack = () => window.history.back();
     return () => { delete (window as any).goBack; };
   }, []);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBtn(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setShowInstallBtn(false);
+    }
+    setDeferredPrompt(null);
+  };
 
   const handleLogout = async () => {
     if (user) {
@@ -361,6 +387,19 @@ const AppContent: React.FC = () => {
               >
                 <Accessibility />
               </button>
+
+              {showInstallBtn && (
+                <button
+                  onClick={handleInstallClick}
+                  onKeyDown={handleKey}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg animate-pulse"
+                  aria-label={language === 'en' ? 'Install App' : 'ആപ്പ് ഇൻസ്റ്റാൾ ചെയ്യുക'}
+                  title={language === 'en' ? 'Install App' : 'ആപ്പ് ഇൻസ്റ്റാൾ ചെയ്യുക'}
+                >
+                  <Download size={20} />
+                  <span className="hidden lg:inline">{language === 'en' ? 'Install' : 'ഇൻസ്റ്റാൾ'}</span>
+                </button>
+              )}
 
               {user || studentUser ? (
                 <div className="flex items-center gap-4">
