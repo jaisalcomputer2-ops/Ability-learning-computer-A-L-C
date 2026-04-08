@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useA11y } from './A11yProvider';
 import { Keyboard, Zap, Target, ArrowLeft, RotateCcw, Volume2, ShieldCheck, Sparkles, Trophy } from 'lucide-react';
-import { handleKey } from '../lib/utils';
 import toast from 'react-hot-toast';
-
 import { Howl } from 'howler';
 
 export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => {
@@ -19,6 +17,8 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   const [showGameOver, setShowGameOver] = useState(false);
   const [currentAnimal, setCurrentAnimal] = useState<any>(null);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [practiceCount, setPracticeCount] = useState(0);
+  const [isErrorMode, setIsErrorMode] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const WORDS = ["apple", "banana", "cherry", "date", "elderberry", "fig", "grape", "honeydew", "kiwi", "lemon"];
@@ -75,7 +75,7 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   const startKeyFinder = () => {
     setCurrentGame('key-finder');
     setScore(0);
-    setTimeLeft(30);
+    setTimeLeft(60);
     setIsActive(true);
     setShowGameOver(false);
     const firstKey = KEYS[Math.floor(Math.random() * KEYS.length)];
@@ -86,7 +86,7 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   const startTypingSpeed = () => {
     setCurrentGame('typing-speed');
     setScore(0);
-    setTimeLeft(30);
+    setTimeLeft(120);
     setIsActive(true);
     setShowGameOver(false);
     const firstWord = WORDS[Math.floor(Math.random() * WORDS.length)];
@@ -98,7 +98,7 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
     setCurrentGame('letter-quest');
     setGameLevel(level);
     setScore(0);
-    setTimeLeft(60); // More time for kids
+    setTimeLeft(120);
     setIsActive(true);
     setShowGameOver(false);
     const keys = LEVEL_KEYS[level - 1];
@@ -110,13 +110,25 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   const startAnimalQuest = () => {
     setCurrentGame('animal-quest');
     setScore(0);
-    setTimeLeft(60);
+    setTimeLeft(180);
     setIsActive(true);
     setShowGameOver(false);
     setIsCorrect(false);
+    setIsErrorMode(false);
+    setPracticeCount(0);
     const firstAnimal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
     setCurrentAnimal(firstAnimal);
-    speakAnimal(firstAnimal.name);
+    
+    const instructions = language === 'en' 
+      ? "Animal Quest started. Spell the animal you see. If you make a mistake, you must practice it 3 times. Press Space to hear the name, and R to hear the spelling."
+      : "ആനിമൽ ക്വസ്റ്റ് തുടങ്ങി. കാണുന്ന മൃഗത്തിന്റെ പേര് ടൈപ്പ് ചെയ്യുക. തെറ്റിയാൽ 3 തവണ പരിശീലിക്കണം. പേര് വീണ്ടും കേൾക്കാൻ സ്പേസ് അമർത്തുക, സ്പെല്ലിംഗ് കേൾക്കാൻ ആർ അമർത്തുക.";
+    
+    announce(instructions, 'assertive');
+    speak(instructions, 1);
+    
+    setTimeout(() => {
+      speakAnimal(firstAnimal.name);
+    }, 6000);
   };
 
   const speakKey = (key: string) => {
@@ -143,10 +155,16 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
     announce(msg, 'assertive');
   };
 
+  const speakSpelling = (word: string) => {
+    const spelling = word.split('').join(', ');
+    const msg = language === 'en' ? `Spelling is: ${spelling}` : `സ്പെല്ലിംഗ്: ${spelling}`;
+    speak(spelling, 0.6); // Very slow for kids
+    announce(msg, 'assertive');
+  };
+
   const animalSounds = useRef<Record<string, Howl>>({});
 
   useEffect(() => {
-    // Pre-load animal sounds
     ANIMALS.forEach(animal => {
       animalSounds.current[animal.name] = new Howl({
         src: [animal.sound],
@@ -165,7 +183,6 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (!isActive) return;
     
-    // Space to repeat
     if (e.code === 'Space') {
       e.preventDefault();
       if (currentGame === 'key-finder') speakKey(targetKey);
@@ -182,7 +199,6 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
           speak(successMsg, 1.2);
           announce(successMsg);
           
-          // Next key after a short delay for kids
           setTimeout(() => {
             const keys = LEVEL_KEYS[gameLevel - 1];
             const nextKey = keys[Math.floor(Math.random() * keys.length)];
@@ -204,47 +220,90 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
     e.preventDefault();
     if (!isActive) return;
 
+    const typed = inputValue.trim().toLowerCase();
+
     if (currentGame === 'typing-speed') {
-      if (inputValue.trim().toLowerCase() === targetWord.toLowerCase()) {
+      if (typed === targetWord.toLowerCase()) {
         setScore(prev => prev + 1);
         setInputValue('');
         const nextWord = WORDS[Math.floor(Math.random() * WORDS.length)];
         setTargetWord(nextWord);
+        announce(t.correct, 'assertive');
         speakWord(nextWord);
       } else {
         speak("Wrong spelling", 1);
         setInputValue('');
       }
-    } else if (currentGame === 'animal-quest') {
-      if (inputValue.trim().toLowerCase() === currentAnimal.name.toLowerCase()) {
-        setScore(prev => prev + 1);
-        setIsCorrect(true);
-        playAnimalSound(currentAnimal.name);
-        const successMsg = `${t.correct}! ${t.listenToTheSound} ${currentAnimal.name}`;
-        announce(successMsg, 'assertive');
-        speak(successMsg, 1);
-        
-        setTimeout(() => {
-          setIsCorrect(false);
-          setInputValue('');
-          const nextAnimal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
-          setCurrentAnimal(nextAnimal);
-          speakAnimal(nextAnimal.name);
-        }, 4000);
+    } else if (currentGame === 'animal-quest' && currentAnimal) {
+      const target = currentAnimal.name.toLowerCase();
+      if (typed === target) {
+        if (isErrorMode) {
+          const remaining = practiceCount - 1;
+          if (remaining > 0) {
+            setPracticeCount(remaining);
+            setInputValue('');
+            const msg = `${t.correct}. ${t.practiceRemaining} ${remaining}`;
+            announce(msg, 'assertive');
+            speak(msg, 1);
+            speakAnimal(currentAnimal.name);
+          } else {
+            setIsErrorMode(false);
+            setPracticeCount(0);
+            setInputValue('');
+            handleCorrectAnimal();
+          }
+        } else {
+          handleCorrectAnimal();
+        }
       } else {
-        const errorMsg = language === 'en' ? "Wrong spelling, try again" : "തെറ്റായ സ്പെല്ലിംഗ്, വീണ്ടും ശ്രമിക്കുക";
-        speak(errorMsg, 1);
-        announce(errorMsg, 'assertive');
-        setInputValue('');
+        if (!isErrorMode) {
+          setIsErrorMode(true);
+          setPracticeCount(3);
+          const errorMsg = language === 'en' 
+            ? "Wrong spelling. Listen carefully and type it 3 times to learn." 
+            : "തെറ്റായ സ്പെല്ലിംഗ്. ശ്രദ്ധിച്ചു കേട്ട് 3 തവണ ടൈപ്പ് ചെയ്ത് പഠിക്കുക.";
+          announce(errorMsg, 'assertive');
+          speak(errorMsg, 1);
+          setTimeout(() => speakSpelling(currentAnimal.name), 2000);
+          setInputValue('');
+        } else {
+          const msg = `${t.incorrect}. ${t.practiceRemaining} ${practiceCount}`;
+          announce(msg, 'assertive');
+          speak(msg, 1);
+          speakSpelling(currentAnimal.name);
+          setInputValue('');
+        }
       }
     }
+  };
+
+  const handleCorrectAnimal = () => {
+    if (!currentAnimal) return;
+    setScore(prev => prev + 1);
+    setIsCorrect(true);
+    playAnimalSound(currentAnimal.name);
+    const successMsg = `${t.correct}! ${t.listenToTheSound} ${currentAnimal.name}`;
+    announce(successMsg, 'assertive');
+    speak(successMsg, 1);
+    
+    setTimeout(() => {
+      setIsCorrect(false);
+      setInputValue('');
+      const nextAnimal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
+      setCurrentAnimal(nextAnimal);
+      speakAnimal(nextAnimal.name);
+    }, 5000);
   };
 
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
     if (e.code === 'Space' && !inputValue) {
       e.preventDefault();
       if (currentGame === 'typing-speed') speakWord(targetWord);
-      if (currentGame === 'animal-quest') speakAnimal(currentAnimal.name);
+      if (currentGame === 'animal-quest' && currentAnimal) speakAnimal(currentAnimal.name);
+    }
+    if (e.code === 'KeyR' && currentGame === 'animal-quest' && currentAnimal) {
+      e.preventDefault();
+      speakSpelling(currentAnimal.name);
     }
   };
 
@@ -407,39 +466,30 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
               className="opacity-0 absolute"
               aria-label="Key input field"
             />
-            
-            {currentGame === 'letter-quest' && (
-              <div className="flex justify-center gap-4 pt-8">
-                {[1, 2, 3, 4, 5].map(lvl => (
-                  <button
-                    key={lvl}
-                    onClick={() => startLetterQuest(lvl)}
-                    className={`w-12 h-12 rounded-full font-bold transition-all ${gameLevel === lvl ? 'bg-orange-600 text-white scale-125 shadow-lg' : 'bg-orange-100 text-orange-600 hover:bg-orange-200'}`}
-                  >
-                    {lvl}
-                  </button>
-                ))}
-              </div>
-            )}
           </>
         ) : currentGame === 'animal-quest' ? (
-          <div className="space-y-8 relative overflow-hidden">
+          <div className="space-y-4 relative overflow-hidden flex flex-col items-center justify-center min-h-[400px]">
             {/* Decorative elements for kids */}
             <div className="absolute top-0 left-0 w-20 h-20 bg-yellow-200/50 rounded-full -translate-x-10 -translate-y-10 blur-2xl" />
             <div className="absolute bottom-0 right-0 w-32 h-32 bg-green-200/50 rounded-full translate-x-10 translate-y-10 blur-2xl" />
             
-            <div className="space-y-4 relative z-10">
-              <h2 className="text-3xl font-black text-green-600 uppercase tracking-[0.2em] drop-shadow-sm">{t.animalQuest}</h2>
-              <div className={`text-[14rem] transition-all duration-700 filter drop-shadow-2xl ${isCorrect ? 'scale-125 rotate-12' : 'scale-100 hover:scale-105'}`}>
+            <div className="space-y-2 relative z-10 text-center">
+              <h2 className="text-2xl font-black text-green-600 uppercase tracking-[0.2em] drop-shadow-sm">{t.animalQuest}</h2>
+              <div className={`text-[10rem] md:text-[12rem] leading-none transition-all duration-700 filter drop-shadow-2xl ${isCorrect ? 'scale-110 rotate-12' : 'scale-100 hover:scale-105'}`}>
                 {currentAnimal?.emoji}
               </div>
               {isCorrect && (
-                <div className="text-5xl font-black text-green-600 animate-bounce tracking-tighter">
+                <div className="text-4xl font-black text-green-600 animate-bounce tracking-tighter">
                   {currentAnimal?.name.toUpperCase()}! 🌟
                 </div>
               )}
+              {isErrorMode && (
+                <div className="bg-amber-100 text-amber-800 px-6 py-2 rounded-full font-bold animate-pulse border-2 border-amber-200">
+                  {t.practiceRemaining}: {practiceCount}
+                </div>
+              )}
             </div>
-            <form onSubmit={handleTypingSubmit} className="max-w-md mx-auto space-y-6 relative z-10">
+            <form onSubmit={handleTypingSubmit} className="w-full max-w-md space-y-4 relative z-10">
               <div className="relative group">
                 <input
                   ref={inputRef}
@@ -449,21 +499,21 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
                   onKeyDown={handleInputKeyDown}
                   autoFocus
                   disabled={isCorrect}
-                  aria-label={`${t.spellTheAnimal}: ${currentAnimal?.name}. ${language === 'en' ? 'Press Space to repeat' : 'വാക്ക് വീണ്ടും കേൾക്കാൻ സ്പേസ് അമർത്തുക'}`}
-                  className={`w-full p-8 text-5xl font-black text-center border-8 rounded-[2.5rem] outline-none dark:bg-slate-800 uppercase tracking-[0.3em] transition-all duration-300 ${isCorrect ? 'bg-green-50 border-green-500 text-green-600 shadow-[0_0_40px_rgba(34,197,94,0.3)]' : 'bg-white border-slate-100 focus:border-green-400 dark:border-slate-700 shadow-xl'}`}
+                  aria-label={`${t.spellTheAnimal}: ${currentAnimal?.name}. ${language === 'en' ? 'Press Space to repeat name, Press R to hear spelling' : 'പേര് വീണ്ടും കേൾക്കാൻ സ്പേസ് അമർത്തുക, സ്പെല്ലിംഗ് കേൾക്കാൻ ആർ അമർത്തുക'}`}
+                  className={`w-full p-6 text-4xl font-black text-center border-8 rounded-[2rem] outline-none dark:bg-slate-800 uppercase tracking-[0.2em] transition-all duration-300 ${isCorrect ? 'bg-green-50 border-green-500 text-green-600 shadow-[0_0_40px_rgba(34,197,94,0.3)]' : isErrorMode ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-white border-slate-100 focus:border-green-400 dark:border-slate-700 shadow-xl'}`}
                   placeholder="???"
                   autoComplete="off"
                 />
                 {!isCorrect && (
-                  <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-4 py-1 bg-green-100 text-green-700 text-sm font-bold rounded-full border border-green-200">
-                    {t.typeTheWord}
+                  <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-4 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full border border-green-200 whitespace-nowrap">
+                    {language === 'en' ? 'Space: Repeat | R: Spelling' : 'സ്പേസ്: വീണ്ടും കേൾക്കാം | ആർ: സ്പെല്ലിംഗ്'}
                   </div>
                 )}
               </div>
               {!isCorrect && (
                 <button
                   type="submit"
-                  className="w-full py-6 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-[2rem] text-3xl font-black hover:from-green-600 hover:to-emerald-700 transition-all shadow-[0_10px_25px_rgba(16,185,129,0.4)] active:scale-95 flex items-center justify-center gap-4"
+                  className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-[1.5rem] text-2xl font-black hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg active:scale-95 flex items-center justify-center gap-4"
                 >
                   <Sparkles /> {t.submitAnswer}
                 </button>
