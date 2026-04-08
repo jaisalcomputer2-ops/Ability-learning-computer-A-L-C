@@ -175,8 +175,19 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   }, []);
 
   const playAnimalSound = (name: string) => {
-    if (animalSounds.current[name]) {
-      animalSounds.current[name].play();
+    const sound = animalSounds.current[name];
+    if (sound) {
+      if (sound.state() === 'unloaded') {
+        sound.load();
+      }
+      sound.play();
+    } else {
+      // Fallback: try to play directly if not in ref
+      const animal = ANIMALS.find(a => a.name === name);
+      if (animal) {
+        const fallback = new Howl({ src: [animal.sound], html5: true });
+        fallback.play();
+      }
     }
   };
 
@@ -291,19 +302,25 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
       setInputValue('');
       const nextAnimal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
       setCurrentAnimal(nextAnimal);
+      // Automatically announce the next animal
+      const nextMsg = `${language === 'en' ? 'Next animal' : 'അടുത്ത മൃഗം'}: ${nextAnimal.name}`;
+      announce(nextMsg, 'assertive');
       speakAnimal(nextAnimal.name);
     }, 5000);
   };
 
   const handleInputKeyDown = (e: React.KeyboardEvent) => {
-    if (e.code === 'Space' && !inputValue) {
-      e.preventDefault();
-      if (currentGame === 'typing-speed') speakWord(targetWord);
-      if (currentGame === 'animal-quest' && currentAnimal) speakAnimal(currentAnimal.name);
-    }
-    if (e.code === 'KeyR' && currentGame === 'animal-quest' && currentAnimal) {
-      e.preventDefault();
-      speakSpelling(currentAnimal.name);
+    // Only trigger shortcuts if input is empty to avoid conflict with typing
+    if (!inputValue) {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (currentGame === 'typing-speed') speakWord(targetWord);
+        if (currentGame === 'animal-quest' && currentAnimal) speakAnimal(currentAnimal.name);
+      }
+      if (e.code === 'KeyR' && currentGame === 'animal-quest' && currentAnimal) {
+        e.preventDefault();
+        speakSpelling(currentAnimal.name);
+      }
     }
   };
 
