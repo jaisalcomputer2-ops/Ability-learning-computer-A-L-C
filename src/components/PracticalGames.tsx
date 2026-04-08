@@ -25,18 +25,18 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   const KEYS = "abcdefghijklmnopqrstuvwxyz0123456789".split("");
   
   const ANIMALS = [
-    { name: "Lion", emoji: "🦁", sound: "https://www.soundjay.com/nature/sounds/lion-roar-01.mp3" },
-    { name: "Cat", emoji: "🐱", sound: "https://www.soundjay.com/nature/sounds/cat-meow-01.mp3" },
-    { name: "Dog", emoji: "🐶", sound: "https://www.soundjay.com/nature/sounds/dog-bark-01.mp3" },
-    { name: "Cow", emoji: "🐮", sound: "https://www.soundjay.com/nature/sounds/cow-moo-01.mp3" },
-    { name: "Sheep", emoji: "🐑", sound: "https://www.soundjay.com/nature/sounds/sheep-lamb-01.mp3" },
-    { name: "Elephant", emoji: "🐘", sound: "https://www.soundjay.com/nature/sounds/elephant-trumpet-01.mp3" },
-    { name: "Monkey", emoji: "🐒", sound: "https://www.soundjay.com/nature/sounds/monkey-chatter-01.mp3" },
-    { name: "Tiger", emoji: "🐯", sound: "https://www.soundjay.com/nature/sounds/tiger-growl-01.mp3" },
-    { name: "Duck", emoji: "🦆", sound: "https://www.soundjay.com/nature/sounds/duck-quack-01.mp3" },
-    { name: "Horse", emoji: "🐴", sound: "https://www.soundjay.com/nature/sounds/horse-whinny-01.mp3" },
-    { name: "Pig", emoji: "🐷", sound: "https://www.soundjay.com/nature/sounds/pig-grunt-01.mp3" },
-    { name: "Rooster", emoji: "🐓", sound: "https://www.soundjay.com/nature/sounds/rooster-crowing-01.mp3" }
+    { name: "Lion", emoji: "🦁", sound: "https://www.google.com/logos/fnbx/animal_sounds/lion.mp3" },
+    { name: "Cat", emoji: "🐱", sound: "https://www.google.com/logos/fnbx/animal_sounds/cat.mp3" },
+    { name: "Dog", emoji: "🐶", sound: "https://www.google.com/logos/fnbx/animal_sounds/dog.mp3" },
+    { name: "Cow", emoji: "🐮", sound: "https://www.google.com/logos/fnbx/animal_sounds/cow.mp3" },
+    { name: "Sheep", emoji: "🐑", sound: "https://www.google.com/logos/fnbx/animal_sounds/sheep.mp3" },
+    { name: "Elephant", emoji: "🐘", sound: "https://www.google.com/logos/fnbx/animal_sounds/elephant.mp3" },
+    { name: "Monkey", emoji: "🐒", sound: "https://www.google.com/logos/fnbx/animal_sounds/monkey.mp3" },
+    { name: "Tiger", emoji: "🐯", sound: "https://www.google.com/logos/fnbx/animal_sounds/tiger.mp3" },
+    { name: "Duck", emoji: "🦆", sound: "https://www.google.com/logos/fnbx/animal_sounds/duck.mp3" },
+    { name: "Horse", emoji: "🐴", sound: "https://www.google.com/logos/fnbx/animal_sounds/horse.mp3" },
+    { name: "Pig", emoji: "🐷", sound: "https://www.google.com/logos/fnbx/animal_sounds/pig.mp3" },
+    { name: "Rooster", emoji: "🐓", sound: "https://www.google.com/logos/fnbx/animal_sounds/rooster.mp3" }
   ];
 
   const LEVEL_KEYS = [
@@ -192,19 +192,14 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   }, []);
 
   const playAnimalSound = (name: string) => {
-    const sound = animalSounds.current[name];
-    if (sound) {
-      if (sound.state() === 'unloaded') {
-        sound.load();
-      }
-      sound.play();
-    } else {
-      // Fallback: try to play directly if not in ref
-      const animal = ANIMALS.find(a => a.name === name);
-      if (animal) {
-        const fallback = new Howl({ src: [animal.sound], html5: true });
-        fallback.play();
-      }
+    const animal = ANIMALS.find(a => a.name === name);
+    if (animal) {
+      const audio = new Audio(animal.sound);
+      audio.play().catch(err => {
+        console.error("Audio playback failed:", err);
+        // Fallback: announce the sound if audio fails
+        announce(language === 'en' ? `[${name} sound plays]` : `[${name} ശബ്ദം കേൾക്കുന്നു]`);
+      });
     }
   };
 
@@ -309,7 +304,10 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
     if (!currentAnimal) return;
     setScore(prev => prev + 1);
     setIsCorrect(true);
+    
+    // Play sound immediately on user interaction to bypass autoplay blocks
     playAnimalSound(currentAnimal.name);
+    
     const successMsg = `${t.correct}! ${t.listenToTheSound} ${currentAnimal.name}`;
     announce(successMsg, 'assertive');
     speak(successMsg, 1);
@@ -319,10 +317,20 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
       setInputValue('');
       const nextAnimal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
       setCurrentAnimal(nextAnimal);
+      
       // Automatically announce the next animal
       const nextMsg = `${language === 'en' ? 'Next animal' : 'അടുത്ത മൃഗം'}: ${nextAnimal.name}`;
       announce(nextMsg, 'assertive');
       speakAnimal(nextAnimal.name);
+
+      // Re-focus the input after a short delay to ensure NVDA switches to focus mode
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          // Trigger a small click or focus event to help screen readers
+          inputRef.current.click();
+        }
+      }, 500);
     }, 5000);
   };
 
@@ -449,7 +457,12 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
         </div>
       </div>
 
-      <div className={`p-12 md:p-20 rounded-[3rem] border-4 shadow-2xl text-center space-y-12 transition-all ${currentGame === 'letter-quest' ? 'bg-gradient-to-b from-yellow-50 to-white border-yellow-200 dark:from-slate-900 dark:to-slate-800 dark:border-yellow-900/30' : currentGame === 'animal-quest' ? 'bg-gradient-to-b from-green-50 to-white border-green-200 dark:from-slate-900 dark:to-slate-800 dark:border-green-900/30' : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800'}`}>
+      <div 
+        role={currentGame ? "application" : "region"} 
+        tabIndex={currentGame ? 0 : -1}
+        aria-label={currentGame ? t[currentGame as keyof typeof t] : "Games Selection"}
+        className={`p-6 md:p-10 rounded-[3rem] border-4 shadow-2xl text-center space-y-6 transition-all ${currentGame === 'letter-quest' ? 'bg-gradient-to-b from-yellow-50 to-white border-yellow-200 dark:from-slate-900 dark:to-slate-800 dark:border-yellow-900/30' : currentGame === 'animal-quest' ? 'bg-gradient-to-b from-green-50 to-white border-green-200 dark:from-slate-900 dark:to-slate-800 dark:border-green-900/30' : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800'}`}
+      >
         {showGameOver ? (
           <div className="space-y-8 animate-in fade-in zoom-in duration-500">
             <div className="inline-flex p-8 bg-yellow-100 rounded-full text-yellow-600 dark:bg-yellow-900/30">
@@ -502,18 +515,18 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
             />
           </>
         ) : currentGame === 'animal-quest' ? (
-          <div className="space-y-4 relative overflow-hidden flex flex-col items-center justify-center min-h-[400px]">
+          <div className="space-y-2 relative overflow-hidden flex flex-col items-center justify-center min-h-[350px]">
             {/* Decorative elements for kids */}
             <div className="absolute top-0 left-0 w-20 h-20 bg-yellow-200/50 rounded-full -translate-x-10 -translate-y-10 blur-2xl" />
             <div className="absolute bottom-0 right-0 w-32 h-32 bg-green-200/50 rounded-full translate-x-10 translate-y-10 blur-2xl" />
             
-            <div className="space-y-2 relative z-10 text-center">
-              <h2 className="text-2xl font-black text-green-600 uppercase tracking-[0.2em] drop-shadow-sm">{t.animalQuest}</h2>
-              <div className={`text-[10rem] md:text-[12rem] leading-none transition-all duration-700 filter drop-shadow-2xl ${isCorrect ? 'scale-110 rotate-12' : 'scale-100 hover:scale-105'}`}>
+            <div className="space-y-1 relative z-10 text-center">
+              <h2 className="text-xl font-black text-green-600 uppercase tracking-[0.2em] drop-shadow-sm">{t.animalQuest}</h2>
+              <div className={`text-[8rem] md:text-[10rem] leading-none transition-all duration-700 filter drop-shadow-2xl ${isCorrect ? 'scale-110 rotate-12' : 'scale-100 hover:scale-105'}`}>
                 {currentAnimal?.emoji}
               </div>
               {isCorrect && (
-                <div className="text-4xl font-black text-green-600 animate-bounce tracking-tighter">
+                <div className="text-3xl font-black text-green-600 animate-bounce tracking-tighter">
                   {currentAnimal?.name.toUpperCase()}! 🌟
                 </div>
               )}
@@ -528,13 +541,14 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
                 <input
                   ref={inputRef}
                   type="text"
+                  role="textbox"
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleInputKeyDown}
                   autoFocus
                   disabled={isCorrect}
                   aria-label={`${t.spellTheAnimal}: ${currentAnimal?.name}. ${language === 'en' ? 'Press Space to repeat name, Press R to hear spelling' : 'പേര് വീണ്ടും കേൾക്കാൻ സ്പേസ് അമർത്തുക, സ്പെല്ലിംഗ് കേൾക്കാൻ ആർ അമർത്തുക'}`}
-                  className={`w-full p-6 text-4xl font-black text-center border-8 rounded-[2rem] outline-none dark:bg-slate-800 uppercase tracking-[0.2em] transition-all duration-300 ${isCorrect ? 'bg-green-50 border-green-500 text-green-600 shadow-[0_0_40px_rgba(34,197,94,0.3)]' : isErrorMode ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-white border-slate-100 focus:border-green-400 dark:border-slate-700 shadow-xl'}`}
+                  className={`w-full p-4 text-3xl font-black text-center border-8 rounded-[2rem] outline-none dark:bg-slate-800 uppercase tracking-[0.2em] transition-all duration-300 ${isCorrect ? 'bg-green-50 border-green-500 text-green-600 shadow-[0_0_40px_rgba(34,197,94,0.3)]' : isErrorMode ? 'bg-amber-50 border-amber-400 text-amber-700' : 'bg-white border-slate-100 focus:border-green-400 dark:border-slate-700 shadow-xl'}`}
                   placeholder="???"
                   autoComplete="off"
                 />
