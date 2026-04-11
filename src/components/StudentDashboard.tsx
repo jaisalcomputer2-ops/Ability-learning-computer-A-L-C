@@ -7,6 +7,7 @@ import { Quiz } from './Quiz';
 import { ExamSystem } from './ExamSystem';
 import { SpellingPractice } from './SpellingPractice';
 import { PracticalGames } from './PracticalGames';
+import { InstallButton } from './InstallButton';
 import { useA11y } from './A11yProvider';
 import { handleKey, getDirectAudioUrl } from '../lib/utils';
 import toast from 'react-hot-toast';
@@ -505,6 +506,11 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentUser 
             </p>
           )}
         </div>
+      </div>
+      
+      {/* Install Section */}
+      <div className="mb-12 max-w-3xl mx-auto">
+        <InstallButton />
       </div>
 
       <div className="grid gap-8">

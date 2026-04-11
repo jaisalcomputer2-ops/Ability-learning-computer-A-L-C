@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { auth, db } from './firebase';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc, setDoc, Timestamp, onSnapshot, getDocFromServer } from 'firebase/firestore';
 import { Toaster } from 'react-hot-toast';
-import { LogIn, LogOut, User, Settings, Accessibility, Sun, Moon, Languages, ShieldCheck, X, GraduationCap, Volume2, Download } from 'lucide-react';
+import { LogIn, LogOut, User, Settings, Accessibility, Sun, Moon, Languages, ShieldCheck, X, GraduationCap, Volume2, Download, RefreshCw } from 'lucide-react';
 import { A11yProvider, useA11y } from './components/A11yProvider';
 import { handleKey } from './lib/utils';
 import { seedLessons } from './lib/seedData';
@@ -18,9 +18,22 @@ const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ i
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { t, announce } = useA11y();
+  const { t, announce, language } = useA11y();
 
   if (!isOpen) return null;
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast.error(language === 'en' ? 'Please enter your email address first' : 'ആദ്യം നിങ്ങളുടെ ഇമെയിൽ വിലാസം നൽകുക');
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast.success(language === 'en' ? 'Password reset email sent!' : 'പാസ്‌വേഡ് മാറ്റാനുള്ള ലിങ്ക് ഇമെയിലിൽ അയച്ചിട്ടുണ്ട്');
+    } catch (error: any) {
+      toast.error(error.message);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,6 +94,13 @@ const AdminLoginModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ i
               className="w-full p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-xl focus:ring-4 focus:ring-blue-400 outline-none"
               required
             />
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              className="mt-2 text-blue-600 dark:text-blue-400 font-bold hover:underline text-lg"
+            >
+              {language === 'en' ? 'Forgot Password?' : 'പാസ്‌വേഡ് മറന്നുപോയോ?'}
+            </button>
           </div>
           <button
             type="submit"
@@ -264,6 +284,20 @@ const AppContent: React.FC = () => {
     announce(`Language changed to ${nextLang === 'en' ? 'English' : 'Malayalam'}`);
   };
 
+  const handleRefresh = () => {
+    announce(language === 'en' ? 'Checking for updates and refreshing...' : 'അപ്‌ഡേറ്റുകൾ പരിശോധിക്കുന്നു...');
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        for (let registration of registrations) {
+          registration.update();
+        }
+      });
+    }
+    setTimeout(() => {
+      window.location.reload();
+    }, 1000);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -346,6 +380,16 @@ const AppContent: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              <button
+                onClick={handleRefresh}
+                onKeyDown={handleKey}
+                className="p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-blue-600"
+                aria-label={language === 'en' ? 'Refresh App' : 'ആപ്പ് പുതുക്കുക'}
+                title={language === 'en' ? 'Refresh App' : 'ആപ്പ് പുതുക്കുക'}
+              >
+                <RefreshCw size={24} />
+              </button>
 
               <Link
                 to="/"

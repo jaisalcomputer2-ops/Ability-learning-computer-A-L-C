@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useA11y } from './A11yProvider';
 import { db } from '../firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { CheckCircle, GraduationCap, Keyboard, Headphones, Zap, ShieldCheck, BookOpen, Accessibility, BrainCircuit, ArrowRight, LogIn, Sparkles, Phone } from 'lucide-react';
+import { CheckCircle, GraduationCap, Keyboard, Headphones, Zap, ShieldCheck, BookOpen, Accessibility, BrainCircuit, ArrowRight, LogIn, Sparkles, Phone, Download } from 'lucide-react';
 import { StudentAuth } from './StudentAuth';
+import { InstallButton } from './InstallButton';
 
 interface LandingPageProps {
   onStudentLogin: (student: any) => void;
@@ -229,6 +230,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStudentLogin }) => {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* Install Section */}
+      <section className="max-w-3xl mx-auto px-4">
+        <InstallButton />
       </section>
 
       {/* Contact Section */}

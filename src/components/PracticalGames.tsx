@@ -3,6 +3,7 @@ import { useA11y } from './A11yProvider';
 import { Keyboard, Zap, Target, ArrowLeft, RotateCcw, Volume2, ShieldCheck, Sparkles, Trophy, HelpCircle, X as CloseIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Howl } from 'howler';
+import { handleKey } from '../lib/utils';
 
 export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const { t, language, announce, speak } = useA11y();
@@ -17,9 +18,14 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   const [gameLevel, setGameLevel] = useState(1);
   const [showGameOver, setShowGameOver] = useState(false);
   const [currentAnimal, setCurrentAnimal] = useState<any>(null);
+  const [animalPool, setAnimalPool] = useState<any[]>([]);
+  const [selectedAnimalCategory, setSelectedAnimalCategory] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState(false);
   const [practiceCount, setPracticeCount] = useState(0);
   const [isErrorMode, setIsErrorMode] = useState(false);
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const [wpm, setWpm] = useState(0);
+  const [showLevelSelect, setShowLevelSelect] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const GAME_INSTRUCTIONS = {
@@ -49,22 +55,86 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
     }
   };
 
-  const WORDS = ["apple", "banana", "cherry", "date", "elderberry", "fig", "grape", "honeydew", "kiwi", "lemon"];
+  const WORDS = [
+    "apple", "banana", "cherry", "date", "elderberry", "fig", "grape", "honeydew", "kiwi", "lemon",
+    "computer", "keyboard", "monitor", "mouse", "internet", "software", "hardware", "network", "screen", "button",
+    "learning", "ability", "student", "teacher", "lesson", "practice", "exercise", "success", "future", "vision"
+  ];
   const KEYS = "abcdefghijklmnopqrstuvwxyz0123456789".split("");
   
   const ANIMALS = [
-    { name: "Lion", emoji: "🦁", sound: "https://www.google.com/logos/fnbx/animal_sounds/lion.mp3" },
-    { name: "Cat", emoji: "🐱", sound: "https://www.google.com/logos/fnbx/animal_sounds/cat.mp3" },
-    { name: "Dog", emoji: "🐶", sound: "https://www.google.com/logos/fnbx/animal_sounds/dog.mp3" },
-    { name: "Cow", emoji: "🐮", sound: "https://www.google.com/logos/fnbx/animal_sounds/cow.mp3" },
-    { name: "Sheep", emoji: "🐑", sound: "https://www.google.com/logos/fnbx/animal_sounds/sheep.mp3" },
-    { name: "Elephant", emoji: "🐘", sound: "https://www.google.com/logos/fnbx/animal_sounds/elephant.mp3" },
-    { name: "Monkey", emoji: "🐒", sound: "https://www.google.com/logos/fnbx/animal_sounds/monkey.mp3" },
-    { name: "Tiger", emoji: "🐯", sound: "https://www.google.com/logos/fnbx/animal_sounds/tiger.mp3" },
-    { name: "Duck", emoji: "🦆", sound: "https://www.google.com/logos/fnbx/animal_sounds/duck.mp3" },
-    { name: "Horse", emoji: "🐴", sound: "https://www.google.com/logos/fnbx/animal_sounds/horse.mp3" },
-    { name: "Pig", emoji: "🐷", sound: "https://www.google.com/logos/fnbx/animal_sounds/pig.mp3" },
-    { name: "Rooster", emoji: "🐓", sound: "https://www.google.com/logos/fnbx/animal_sounds/rooster.mp3" }
+    // Farm Animals
+    { name: "Cow", emoji: "🐮", sound: "https://www.google.com/logos/fnbx/animal_sounds/cow.mp3", category: "farmAnimals" },
+    { name: "Horse", emoji: "🐴", sound: "https://www.google.com/logos/fnbx/animal_sounds/horse.mp3", category: "farmAnimals" },
+    { name: "Pig", emoji: "🐷", sound: "https://www.google.com/logos/fnbx/animal_sounds/pig.mp3", category: "farmAnimals" },
+    { name: "Sheep", emoji: "🐑", sound: "https://www.google.com/logos/fnbx/animal_sounds/sheep.mp3", category: "farmAnimals" },
+    { name: "Goat", emoji: "🐐", sound: "https://www.google.com/logos/fnbx/animal_sounds/goat.mp3", category: "farmAnimals" },
+    { name: "Chicken", emoji: "🐔", sound: "https://www.google.com/logos/fnbx/animal_sounds/chicken_cluck.mp3", category: "farmAnimals" },
+    { name: "Rooster", emoji: "🐓", sound: "https://www.google.com/logos/fnbx/animal_sounds/rooster.mp3", category: "farmAnimals" },
+    { name: "Duck", emoji: "🦆", sound: "https://www.google.com/logos/fnbx/animal_sounds/duck.mp3", category: "farmAnimals" },
+    { name: "Turkey", emoji: "🦃", sound: "https://www.google.com/logos/fnbx/animal_sounds/turkey.mp3", category: "farmAnimals" },
+    { name: "Donkey", emoji: "🫏", sound: "https://www.google.com/logos/fnbx/animal_sounds/donkey.mp3", category: "farmAnimals" },
+    { name: "Rabbit", emoji: "🐇", sound: "https://www.google.com/logos/fnbx/animal_sounds/rabbit.mp3", category: "farmAnimals" },
+    
+    // Wild Animals
+    { name: "Lion", emoji: "🦁", sound: "https://www.google.com/logos/fnbx/animal_sounds/lion.mp3", category: "wildAnimals" },
+    { name: "Tiger", emoji: "🐯", sound: "https://www.google.com/logos/fnbx/animal_sounds/tiger.mp3", category: "wildAnimals" },
+    { name: "Elephant", emoji: "🐘", sound: "https://www.google.com/logos/fnbx/animal_sounds/elephant.mp3", category: "wildAnimals" },
+    { name: "Monkey", emoji: "🐒", sound: "https://www.google.com/logos/fnbx/animal_sounds/monkey.mp3", category: "wildAnimals" },
+    { name: "Zebra", emoji: "🦓", sound: "https://www.google.com/logos/fnbx/animal_sounds/zebra.mp3", category: "wildAnimals" },
+    { name: "Giraffe", emoji: "🦒", sound: "https://www.google.com/logos/fnbx/animal_sounds/giraffe.mp3", category: "wildAnimals" },
+    { name: "Bear", emoji: "🐻", sound: "https://www.google.com/logos/fnbx/animal_sounds/bear.mp3", category: "wildAnimals" },
+    { name: "Wolf", emoji: "🐺", sound: "https://www.google.com/logos/fnbx/animal_sounds/wolf.mp3", category: "wildAnimals" },
+    { name: "Fox", emoji: "🦊", sound: "https://www.google.com/logos/fnbx/animal_sounds/fox.mp3", category: "wildAnimals" },
+    { name: "Panda", emoji: "🐼", sound: "https://www.google.com/logos/fnbx/animal_sounds/panda.mp3", category: "wildAnimals" },
+    { name: "Koala", emoji: "🐨", sound: "https://www.google.com/logos/fnbx/animal_sounds/koala.mp3", category: "wildAnimals" },
+    { name: "Leopard", emoji: "🐆", sound: "https://www.google.com/logos/fnbx/animal_sounds/leopard.mp3", category: "wildAnimals" },
+    { name: "Hippo", emoji: "🦛", sound: "https://www.google.com/logos/fnbx/animal_sounds/hippo.mp3", category: "wildAnimals" },
+    { name: "Rhino", emoji: "🦏", sound: "https://www.google.com/logos/fnbx/animal_sounds/rhino.mp3", category: "wildAnimals" },
+    { name: "Crocodile", emoji: "🐊", sound: "https://www.google.com/logos/fnbx/animal_sounds/crocodile.mp3", category: "wildAnimals" },
+    { name: "Snake", emoji: "🐍", sound: "https://www.google.com/logos/fnbx/animal_sounds/snake_hiss.mp3", category: "wildAnimals" },
+    { name: "Kangaroo", emoji: "🦘", sound: "https://www.google.com/logos/fnbx/animal_sounds/kangaroo.mp3", category: "wildAnimals" },
+    { name: "Gorilla", emoji: "🦍", sound: "https://www.google.com/logos/fnbx/animal_sounds/gorilla.mp3", category: "wildAnimals" },
+    
+    // Birds
+    { name: "Owl", emoji: "🦉", sound: "https://www.google.com/logos/fnbx/animal_sounds/owl.mp3", category: "birds" },
+    { name: "Parrot", emoji: "🦜", sound: "https://www.google.com/logos/fnbx/animal_sounds/parrot.mp3", category: "birds" },
+    { name: "Peacock", emoji: "🦚", sound: "https://www.google.com/logos/fnbx/animal_sounds/peacock.mp3", category: "birds" },
+    { name: "Eagle", emoji: "🦅", sound: "https://www.google.com/logos/fnbx/animal_sounds/eagle.mp3", category: "birds" },
+    { name: "Penguin", emoji: "🐧", sound: "https://www.google.com/logos/fnbx/animal_sounds/penguin.mp3", category: "birds" },
+    { name: "Ostrich", emoji: "🦩", sound: "https://www.google.com/logos/fnbx/animal_sounds/ostrich.mp3", category: "birds" },
+    { name: "Crow", emoji: "🐦‍⬛", sound: "https://www.google.com/logos/fnbx/animal_sounds/crow.mp3", category: "birds" },
+    { name: "Pigeon", emoji: "🐦", sound: "https://www.google.com/logos/fnbx/animal_sounds/pigeon.mp3", category: "birds" },
+    { name: "Woodpecker", emoji: "🐦", sound: "https://www.google.com/logos/fnbx/animal_sounds/woodpecker.mp3", category: "birds" },
+    { name: "Swan", emoji: "🦢", sound: "https://www.google.com/logos/fnbx/animal_sounds/swan.mp3", category: "birds" },
+    { name: "Flamingo", emoji: "🦩", sound: "https://www.google.com/logos/fnbx/animal_sounds/flamingo.mp3", category: "birds" },
+    { name: "Canary", emoji: "🐤", sound: "https://www.google.com/logos/fnbx/animal_sounds/canary.mp3", category: "birds" },
+    
+    // Water Animals
+    { name: "Whale", emoji: "🐋", sound: "https://www.google.com/logos/fnbx/animal_sounds/humpback_whale.mp3", category: "waterAnimals" },
+    { name: "Dolphin", emoji: "🐬", sound: "https://www.google.com/logos/fnbx/animal_sounds/bottlenose_dolphin.mp3", category: "waterAnimals" },
+    { name: "Shark", emoji: "🦈", sound: "https://www.google.com/logos/fnbx/animal_sounds/shark.mp3", category: "waterAnimals" },
+    { name: "Seal", emoji: "🦭", sound: "https://www.google.com/logos/fnbx/animal_sounds/seal.mp3", category: "waterAnimals" },
+    { name: "Octopus", emoji: "🐙", sound: "https://www.google.com/logos/fnbx/animal_sounds/octopus.mp3", category: "waterAnimals" },
+    { name: "Sea Lion", emoji: "🦭", sound: "https://www.google.com/logos/fnbx/animal_sounds/sea_lion.mp3", category: "waterAnimals" },
+    { name: "Walrus", emoji: "🦭", sound: "https://www.google.com/logos/fnbx/animal_sounds/walrus.mp3", category: "waterAnimals" },
+    { name: "Narwhal", emoji: "🐳", sound: "https://www.google.com/logos/fnbx/animal_sounds/narwhal.mp3", category: "waterAnimals" },
+    { name: "Otter", emoji: "🦦", sound: "https://www.google.com/logos/fnbx/animal_sounds/otter.mp3", category: "waterAnimals" },
+    { name: "Frog", emoji: "🐸", sound: "https://www.google.com/logos/fnbx/animal_sounds/frog.mp3", category: "waterAnimals" },
+    { name: "Toad", emoji: "🐸", sound: "https://www.google.com/logos/fnbx/animal_sounds/toad.mp3", category: "waterAnimals" },
+    { name: "Duck", emoji: "🦆", sound: "https://www.google.com/logos/fnbx/animal_sounds/duck.mp3", category: "waterAnimals" },
+    
+    // Pets
+    { name: "Cat", emoji: "🐱", sound: "https://www.google.com/logos/fnbx/animal_sounds/cat.mp3", category: "pets" },
+    { name: "Dog", emoji: "🐶", sound: "https://www.google.com/logos/fnbx/animal_sounds/dog.mp3", category: "pets" },
+    { name: "Rabbit", emoji: "🐇", sound: "https://www.google.com/logos/fnbx/animal_sounds/rabbit.mp3", category: "pets" },
+    { name: "Hamster", emoji: "🐹", sound: "https://www.google.com/logos/fnbx/animal_sounds/hamster.mp3", category: "pets" },
+    { name: "Mouse", emoji: "🐭", sound: "https://www.google.com/logos/fnbx/animal_sounds/mouse.mp3", category: "pets" },
+    { name: "Guinea Pig", emoji: "🐹", sound: "https://www.google.com/logos/fnbx/animal_sounds/guinea_pig.mp3", category: "pets" },
+    { name: "Canary", emoji: "🐤", sound: "https://www.google.com/logos/fnbx/animal_sounds/canary.mp3", category: "pets" },
+    { name: "Parrot", emoji: "🦜", sound: "https://www.google.com/logos/fnbx/animal_sounds/parrot.mp3", category: "pets" },
+    { name: "Turtle", emoji: "🐢", sound: "https://www.google.com/logos/fnbx/animal_sounds/turtle.mp3", category: "pets" },
+    { name: "Ferret", emoji: "🦦", sound: "https://www.google.com/logos/fnbx/animal_sounds/ferret.mp3", category: "pets" },
   ];
 
   const LEVEL_KEYS = [
@@ -76,29 +146,42 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   ];
 
   useEffect(() => {
-    if (currentGame && !showGameOver) {
+    if (currentGame && !showGameOver && !showLevelSelect) {
       setTimeout(() => {
         if (inputRef.current) {
           inputRef.current.focus();
         }
-      }, 100);
+      }, 300); // Increased delay to ensure UI is rendered
     }
-  }, [currentGame, showGameOver]);
+  }, [currentGame, showGameOver, showLevelSelect]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (isActive && timeLeft > 0) {
-      timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
+      timer = setInterval(() => {
+        setTimeLeft(prev => prev - 1);
+        
+        // Calculate WPM for typing speed game
+        if (currentGame === 'typing-speed' && startTime) {
+          const elapsedMinutes = (Date.now() - startTime) / 60000;
+          if (elapsedMinutes > 0) {
+            const currentWpm = Math.round(score / elapsedMinutes);
+            setWpm(currentWpm);
+          }
+        }
+      }, 1000);
     } else if (timeLeft === 0 && isActive) {
       setIsActive(false);
       setShowGameOver(true);
-      const finalMsg = `${t.quizCompleted}. ${t.score}: ${score}`;
+      const finalMsg = currentGame === 'typing-speed' 
+        ? `${t.exerciseCompleted}. ${t.score}: ${score}. ${t.wpm}: ${wpm}`
+        : `${t.exerciseCompleted}. ${t.score}: ${score}`;
       announce(finalMsg, 'assertive');
       speak(finalMsg, 1);
       toast.success(finalMsg);
     }
     return () => clearInterval(timer);
-  }, [isActive, timeLeft, score, t.quizCompleted, t.score, announce, speak]);
+  }, [isActive, timeLeft, score, t.exerciseCompleted, t.score, t.wpm, announce, speak, currentGame, startTime, wpm]);
 
   const startKeyFinder = () => {
     setCurrentGame('key-finder');
@@ -106,6 +189,7 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
     setTimeLeft(60);
     setIsActive(true);
     setShowGameOver(false);
+    setStartTime(Date.now());
     const firstKey = KEYS[Math.floor(Math.random() * KEYS.length)];
     setTargetKey(firstKey);
     speakKey(firstKey);
@@ -114,9 +198,11 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   const startTypingSpeed = () => {
     setCurrentGame('typing-speed');
     setScore(0);
-    setTimeLeft(120);
+    setWpm(0);
+    setTimeLeft(60);
     setIsActive(true);
     setShowGameOver(false);
+    setStartTime(Date.now());
     const firstWord = WORDS[Math.floor(Math.random() * WORDS.length)];
     setTargetWord(firstWord);
     speakWord(firstWord);
@@ -126,25 +212,38 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
     setCurrentGame('letter-quest');
     setGameLevel(level);
     setScore(0);
-    setTimeLeft(120);
+    setTimeLeft(60);
     setIsActive(true);
     setShowGameOver(false);
+    setShowLevelSelect(false);
+    setStartTime(Date.now());
     const keys = LEVEL_KEYS[level - 1];
     const firstKey = keys[Math.floor(Math.random() * keys.length)];
     setTargetKey(firstKey);
     speakQuestKey(firstKey);
   };
 
-  const startAnimalQuest = () => {
+  const startAnimalQuest = (category: string | null = null) => {
     setCurrentGame('animal-quest');
+    setSelectedAnimalCategory(category);
     setScore(0);
     setTimeLeft(180);
     setIsActive(true);
     setShowGameOver(false);
+    setShowLevelSelect(false);
     setIsCorrect(false);
     setIsErrorMode(false);
     setPracticeCount(0);
-    const firstAnimal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
+    setStartTime(Date.now());
+    
+    // Filter and shuffle animals
+    const filtered = category 
+      ? ANIMALS.filter(a => a.category === category)
+      : [...ANIMALS];
+    
+    const shuffled = [...filtered].sort(() => Math.random() - 0.5);
+    const firstAnimal = shuffled[0];
+    setAnimalPool(shuffled.slice(1));
     setCurrentAnimal(firstAnimal);
     
     const instructions = language === 'en' 
@@ -293,10 +392,18 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
           if (remaining > 0) {
             setPracticeCount(remaining);
             setInputValue('');
-            const msg = `${t.correct}. ${t.practiceRemaining} ${remaining}`;
-            announce(msg, 'assertive');
-            speak(msg, 1);
-            speakAnimal(currentAnimal.name);
+            
+            let msg = `${t.correct}. ${t.practiceRemaining} ${remaining}`;
+            if (remaining === 2) {
+              msg = t.practiceSuccessFirst;
+            } else if (remaining === 1) {
+              msg = t.practiceSuccessSecond;
+            }
+            
+            const fullMsg = `${msg}. ${t.spellTheAnimal}: ${currentAnimal.name}`;
+            announce(fullMsg, 'assertive');
+            speak(fullMsg, 0.9);
+            setInputValue('');
           } else {
             setIsErrorMode(false);
             setPracticeCount(0);
@@ -310,22 +417,42 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
         if (!isErrorMode) {
           setIsErrorMode(true);
           setPracticeCount(3);
-          const errorMsg = language === 'en' 
-            ? "Wrong spelling. Listen carefully and type it 3 times to learn." 
-            : "തെറ്റായ സ്പെല്ലിംഗ്. ശ്രദ്ധിച്ചു കേട്ട് 3 തവണ ടൈപ്പ് ചെയ്ത് പഠിക്കുക.";
-          announce(errorMsg, 'assertive');
-          speak(errorMsg, 1);
-          setTimeout(() => speakSpelling(currentAnimal.name), 2000);
+          const spelling = currentAnimal.name.split('').join(', ');
+          const fullMsg = `${t.wrongSpellingPractice} ${spelling}`;
+          announce(fullMsg, 'assertive');
+          speak(fullMsg, 0.8);
           setInputValue('');
         } else {
-          const msg = `${t.incorrect}. ${t.practiceRemaining} ${practiceCount}`;
+          const spelling = currentAnimal.name.split('').join(', ');
+          const msg = `${t.incorrect}. ${t.practiceRemaining} ${practiceCount}. ${spelling}`;
           announce(msg, 'assertive');
-          speak(msg, 1);
-          speakSpelling(currentAnimal.name);
+          speak(msg, 0.8);
           setInputValue('');
         }
       }
     }
+  };
+
+  const getNextAnimal = (currentPool: any[], category: string | null, lastAnimalName?: string) => {
+    let newPool = [...currentPool];
+    if (newPool.length === 0) {
+      // Refill pool if empty
+      const filtered = category 
+        ? ANIMALS.filter(a => a.category === category)
+        : [...ANIMALS];
+      
+      // Ensure the first animal of the new pool is not the same as the last one
+      let shuffled = [...filtered].sort(() => Math.random() - 0.5);
+      if (lastAnimalName && shuffled.length > 1 && shuffled[0].name === lastAnimalName) {
+        // Swap first and last if they match
+        [shuffled[0], shuffled[shuffled.length - 1]] = [shuffled[shuffled.length - 1], shuffled[0]];
+      }
+      newPool = shuffled;
+    }
+    
+    const next = newPool[0];
+    const remaining = newPool.slice(1);
+    return { next, remaining };
   };
 
   const handleCorrectAnimal = () => {
@@ -343,13 +470,15 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
     setTimeout(() => {
       setIsCorrect(false);
       setInputValue('');
-      const nextAnimal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
-      setCurrentAnimal(nextAnimal);
+      
+      const { next, remaining } = getNextAnimal(animalPool, selectedAnimalCategory, currentAnimal.name);
+      setAnimalPool(remaining);
+      setCurrentAnimal(next);
       
       // Automatically announce the next animal
-      const nextMsg = `${language === 'en' ? 'Next animal' : 'അടുത്ത മൃഗം'}: ${nextAnimal.name}`;
+      const nextMsg = `${language === 'en' ? 'Next animal' : 'അടുത്ത മൃഗം'}: ${next.name}`;
       announce(nextMsg, 'assertive');
-      speakAnimal(nextAnimal.name);
+      speakAnimal(next.name);
 
       // Re-focus the input after a short delay to ensure NVDA switches to focus mode
       setTimeout(() => {
@@ -400,7 +529,7 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
         <div className="grid sm:grid-cols-2 gap-8">
           <div className="relative group">
             <button
-              onClick={() => startLetterQuest(1)}
+              onClick={() => setShowLevelSelect(true)}
               className="w-full p-10 bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-900/10 dark:to-orange-900/10 rounded-[2.5rem] border-2 border-yellow-100 dark:border-yellow-800 shadow-xl hover:scale-105 transition-all text-left"
             >
               <div className="w-16 h-16 bg-yellow-400 rounded-2xl flex items-center justify-center text-white mb-8 shadow-lg group-hover:rotate-12 transition-transform">
@@ -426,7 +555,10 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
 
           <div className="relative group">
             <button
-              onClick={startAnimalQuest}
+              onClick={() => {
+                setCurrentGame('animal-quest');
+                setShowLevelSelect(true);
+              }}
               className="w-full p-10 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-[2.5rem] border-2 border-green-100 dark:border-green-800 shadow-xl hover:scale-105 transition-all text-left"
             >
               <div className="w-16 h-16 bg-green-500 rounded-2xl flex items-center justify-center text-white mb-8 shadow-lg group-hover:rotate-12 transition-transform">
@@ -531,6 +663,12 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
           </button>
         </div>
         <div className="flex items-center gap-6">
+          {currentGame === 'typing-speed' && (
+            <div className="flex items-center gap-2 bg-indigo-100 dark:bg-indigo-900/30 px-6 py-3 rounded-2xl border-2 border-indigo-200 shadow-sm text-indigo-700">
+              <Zap className="text-indigo-500" />
+              <span className="text-2xl font-black">{wpm} {t.wpm}</span>
+            </div>
+          )}
           {(currentGame === 'letter-quest' || currentGame === 'animal-quest') && (
             <div className={`flex items-center gap-2 px-6 py-3 rounded-2xl border-2 shadow-sm ${currentGame === 'letter-quest' ? 'bg-orange-100 border-orange-200 text-orange-700' : 'bg-green-100 border-green-200 text-green-700'}`}>
               <span className="font-bold">{currentGame === 'letter-quest' ? `${t.gameLevel} ${gameLevel}` : t.animalQuest}</span>
@@ -558,13 +696,13 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
             <div className="inline-flex p-8 bg-yellow-100 rounded-full text-yellow-600 dark:bg-yellow-900/30">
               <Trophy size={80} className="animate-bounce" />
             </div>
-            <h2 className="text-5xl font-black text-slate-800 dark:text-white">{t.quizCompleted}</h2>
+            <h2 className="text-5xl font-black text-slate-800 dark:text-white">{t.exerciseCompleted}</h2>
             <p className="text-3xl font-bold text-blue-600">{t.score}: {score}</p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center pt-8">
               <button
                 onClick={() => {
                   if (currentGame === 'letter-quest') startLetterQuest(gameLevel);
-                  else if (currentGame === 'animal-quest') startAnimalQuest();
+                  else if (currentGame === 'animal-quest') startAnimalQuest(selectedAnimalCategory);
                   else if (currentGame === 'key-finder') startKeyFinder();
                   else startTypingSpeed();
                 }}
@@ -756,6 +894,78 @@ export const PracticalGames: React.FC<{ onBack: () => void }> = ({ onBack }) => 
             >
               {language === 'en' ? 'Got it!' : 'മനസ്സിലായി!'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {showLevelSelect && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[2.5rem] shadow-2xl border-4 border-orange-100 dark:border-orange-900/30 p-8 animate-in zoom-in duration-300">
+            <div className="flex justify-between items-center mb-8">
+              <div className="flex items-center gap-4">
+                <div className={`p-3 rounded-2xl ${currentGame === 'letter-quest' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
+                  {currentGame === 'letter-quest' ? <Sparkles size={32} /> : <Volume2 size={32} />}
+                </div>
+                <h2 className="text-3xl font-black text-slate-800 dark:text-white">
+                  {currentGame === 'letter-quest' 
+                    ? (language === 'en' ? 'Select Level' : 'ലെവൽ തിരഞ്ഞെടുക്കുക')
+                    : (language === 'en' ? 'Select Category' : 'വിഭാഗം തിരഞ്ഞെടുക്കുക')}
+                </h2>
+              </div>
+              <button 
+                onClick={() => setShowLevelSelect(false)}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+              >
+                <CloseIcon size={32} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {currentGame === 'letter-quest' ? (
+                [
+                  { id: 1, name: t.homeRow, icon: <Keyboard className="text-blue-500" /> },
+                  { id: 2, name: t.topRow, icon: <Keyboard className="text-green-500" /> },
+                  { id: 3, name: t.bottomRow, icon: <Keyboard className="text-purple-500" /> },
+                  { id: 4, name: t.numbers, icon: <Keyboard className="text-orange-500" /> },
+                  { id: 5, name: t.allKeys, icon: <Keyboard className="text-red-500" /> }
+                ].map((lvl) => (
+                  <button
+                    key={lvl.id}
+                    onClick={() => startLetterQuest(lvl.id)}
+                    onKeyDown={handleKey}
+                    aria-label={`${lvl.name}. ${language === 'en' ? 'Select level' : 'ലെവൽ തിരഞ്ഞെടുക്കുക'}`}
+                    className="flex items-center gap-4 p-6 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 hover:border-orange-400 transition-all text-left group outline-none focus:ring-4 focus:ring-orange-400"
+                  >
+                    <div className="p-3 bg-white dark:bg-slate-700 rounded-xl shadow-sm group-hover:scale-110 transition-transform">
+                      {lvl.icon}
+                    </div>
+                    <span className="text-2xl font-bold text-slate-700 dark:text-slate-200">{lvl.name}</span>
+                  </button>
+                ))
+              ) : (
+                [
+                  { id: 'all', name: language === 'en' ? 'All Animals' : 'എല്ലാ മൃഗങ്ങളും', key: null, color: 'text-green-500' },
+                  { id: 'farm', name: t.farmAnimals, key: 'farmAnimals', color: 'text-yellow-600' },
+                  { id: 'wild', name: t.wildAnimals, key: 'wildAnimals', color: 'text-orange-600' },
+                  { id: 'birds', name: t.birds, key: 'birds', color: 'text-blue-500' },
+                  { id: 'water', name: t.waterAnimals, key: 'waterAnimals', color: 'text-cyan-500' },
+                  { id: 'pets', name: t.pets, key: 'pets', color: 'text-pink-500' }
+                ].map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => startAnimalQuest(cat.key)}
+                    onKeyDown={handleKey}
+                    aria-label={`${cat.name}. ${language === 'en' ? 'Select category' : 'വിഭാഗം തിരഞ്ഞെടുക്കുക'}`}
+                    className="flex items-center gap-4 p-6 bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-slate-100 dark:border-slate-700 hover:border-green-400 transition-all text-left group outline-none focus:ring-4 focus:ring-green-400"
+                  >
+                    <div className="p-3 bg-white dark:bg-slate-700 rounded-xl shadow-sm group-hover:scale-110 transition-transform">
+                      <Volume2 className={cat.color} />
+                    </div>
+                    <span className="text-2xl font-bold text-slate-700 dark:text-slate-200">{cat.name}</span>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}

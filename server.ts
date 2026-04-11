@@ -14,6 +14,10 @@ async function startServer() {
   app.use(express.json());
 
   // AI Generation Endpoints
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", env: process.env.NODE_ENV });
+  });
+
   app.post("/api/ai/generate-exam", async (req, res) => {
     try {
       const { input, language } = req.body;
@@ -24,7 +28,7 @@ async function startServer() {
 
       const ai = new GoogleGenerativeAI(apiKey);
       const model = ai.getGenerativeModel({
-        model: "gemini-1.5-flash", // Using a more stable model name
+        model: "gemini-1.5-flash",
       });
 
       const prompt = `Convert the following text into a structured JSON array of quiz questions. 
@@ -211,13 +215,14 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    const distPath = path.resolve(__dirname, "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));

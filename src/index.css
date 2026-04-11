@@ -6,11 +6,27 @@
 
 @layer base {
   body {
-    font-family: Arial, sans-serif;
+    font-family: 'Inter', Arial, sans-serif;
     line-height: 1.6;
-    padding: 20px;
+    margin: 0;
+    padding: 0;
     @apply bg-slate-50 text-slate-900 min-h-screen transition-colors duration-200;
   }
+
+  /* Fallback for when Tailwind fails to load */
+  .max-w-4xl { max-width: 56rem; margin-left: auto; margin-right: auto; }
+  .max-w-7xl { max-width: 80rem; margin-left: auto; margin-right: auto; }
+  .p-6 { padding: 1.5rem; }
+  .text-center { text-align: center; }
+  .flex { display: flex; }
+  .justify-between { justify-content: space-between; }
+  .items-center { align-items: center; }
+  .gap-4 { gap: 1rem; }
+  .space-y-6 > * + * { margin-top: 1.5rem; }
+  .space-y-8 > * + * { margin-top: 2rem; }
+  .rounded-2xl { border-radius: 1rem; }
+  .bg-white { background-color: white; }
+  .shadow-xl { box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); }
 
   h1 {
     font-size: 28px;

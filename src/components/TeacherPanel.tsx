@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db, auth, storage } from '../firebase';
 import { collection, addDoc, query, onSnapshot, deleteDoc, doc, updateDoc, Timestamp, orderBy, where, getDocs, setDoc, getDocFromServer } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, uploadBytes } from 'firebase/storage';
-import { Plus, Trash2, BookOpen, Music, HelpCircle, Save, AlertTriangle, Edit3, X, BrainCircuit, Sparkles, Loader2, Image as ImageIcon, ChevronDown, ChevronUp, Settings, Type as TypeIcon, Upload, Key, Users, ClipboardCheck, Info, FileAudio, GraduationCap, Phone, Copy, Keyboard, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, BookOpen, Music, HelpCircle, Save, AlertTriangle, Edit3, X, BrainCircuit, Sparkles, Loader2, Image as ImageIcon, ChevronDown, ChevronUp, Settings, Type as TypeIcon, Upload, Key, Users, ClipboardCheck, Info, FileAudio, GraduationCap, Phone, Copy, Keyboard, RotateCcw, Search, Calendar, User } from 'lucide-react';
 import { useA11y } from './A11yProvider';
 import { handleKey, getDirectAudioUrl, isYouTubeUrl } from '../lib/utils';
 import { seedLessons } from '../lib/seedData';
@@ -93,6 +93,8 @@ export const TeacherPanel: React.FC = () => {
   const [registrationRequests, setRegistrationRequests] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'lessons' | 'exams' | 'students' | 'requests' | 'settings' | 'spelling'>('lessons');
   const [seedingLessons, setSeedingLessons] = useState(false);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [requestSearch, setRequestSearch] = useState('');
   const [aiExamInput, setAiExamInput] = useState('');
   const [generatingAIExam, setGeneratingAIExam] = useState(false);
   const [spellingCategories, setSpellingCategories] = useState<any[]>([]);
@@ -1047,16 +1049,41 @@ export const TeacherPanel: React.FC = () => {
 
       {activeTab === 'requests' && (
         <section className="bg-white p-8 rounded-2xl shadow-xl border-2 border-slate-200 mb-12 dark:bg-slate-900 dark:border-slate-700">
-          <h2 className="text-2xl font-bold mb-8 flex items-center gap-3">
-            <ClipboardCheck className="text-blue-600" /> {t.registrationRequests}
-          </h2>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <ClipboardCheck className="text-blue-600" /> {t.registrationRequests}
+            </h2>
+            <div className="relative w-full md:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              <input
+                type="text"
+                placeholder={language === 'en' ? "Search requests..." : "അപേക്ഷകൾ തിരയുക..."}
+                value={requestSearch}
+                onChange={(e) => setRequestSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 rounded-xl border-2 border-slate-100 focus:border-blue-400 outline-none dark:bg-slate-800 dark:border-slate-700"
+              />
+            </div>
+          </div>
           <div className="grid gap-6">
-            {registrationRequests.filter(r => r.status === 'pending').length === 0 ? (
+            {registrationRequests
+              .filter(r => r.status === 'pending')
+              .filter(r => 
+                r.name.toLowerCase().includes(requestSearch.toLowerCase()) || 
+                (r.registerId && r.registerId.toLowerCase().includes(requestSearch.toLowerCase())) ||
+                r.phone.includes(requestSearch)
+              ).length === 0 ? (
               <div className="text-center py-12 text-slate-400 italic">
-                No pending requests
+                {language === 'en' ? 'No pending requests found' : 'അപേക്ഷകളൊന്നുമില്ല'}
               </div>
             ) : (
-              registrationRequests.filter(r => r.status === 'pending').map((request) => (
+              registrationRequests
+                .filter(r => r.status === 'pending')
+                .filter(r => 
+                  r.name.toLowerCase().includes(requestSearch.toLowerCase()) || 
+                  (r.registerId && r.registerId.toLowerCase().includes(requestSearch.toLowerCase())) ||
+                  r.phone.includes(requestSearch)
+                )
+                .map((request) => (
                 <div key={request.id} className="bg-slate-50 p-6 rounded-2xl border-2 border-slate-100 dark:bg-slate-800/50 dark:border-slate-800 flex flex-wrap justify-between items-center gap-4">
                   <div className="flex-1 min-w-[200px]">
                     <h3 className="text-xl font-bold">{request.name}</h3>
@@ -1166,22 +1193,40 @@ export const TeacherPanel: React.FC = () => {
 
       {activeTab === 'students' && (
         <section className="bg-white p-8 rounded-2xl shadow-xl border-2 border-slate-200 mb-12 dark:bg-slate-900 dark:border-slate-700">
-          <h2 className="text-2xl font-bold mb-8 flex items-center gap-3">
-            <Users className="text-blue-600" /> {t.students}
-          </h2>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <Users className="text-blue-600" /> {t.students}
+            </h2>
+            <div className="relative w-full md:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              <input
+                type="text"
+                placeholder={language === 'en' ? "Search by Name or ID..." : "പേര് അല്ലെങ്കിൽ ID ഉപയോഗിച്ച് തിരയുക..."}
+                value={studentSearch}
+                onChange={(e) => setStudentSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 rounded-xl border-2 border-slate-100 focus:border-blue-400 outline-none dark:bg-slate-800 dark:border-slate-700"
+              />
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b-2 border-slate-100 dark:border-slate-800">
                   <th className="py-4 px-4 font-bold text-slate-500 uppercase tracking-wider">{t.studentName}</th>
                   <th className="py-4 px-4 font-bold text-slate-500 uppercase tracking-wider">{t.studentId}</th>
+                  <th className="py-4 px-4 font-bold text-slate-500 uppercase tracking-wider">{t.phone} / {t.age}</th>
                   <th className="py-4 px-4 font-bold text-slate-500 uppercase tracking-wider">{t.progress}</th>
                   <th className="py-4 px-4 font-bold text-slate-500 uppercase tracking-wider">{t.avgScore}</th>
                   <th className="py-4 px-4 font-bold text-slate-500 uppercase tracking-wider">{t.finalExam}</th>
                 </tr>
               </thead>
               <tbody>
-                {studentsProgress.map((student) => (
+                {studentsProgress
+                  .filter(s => 
+                    s.name.toLowerCase().includes(studentSearch.toLowerCase()) || 
+                    s.userId.toLowerCase().includes(studentSearch.toLowerCase())
+                  )
+                  .map((student) => (
                   <tr key={student.userId} className="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                     <td className="py-4 px-4">
                       <p className="font-bold text-lg">{student.name}</p>
@@ -1189,18 +1234,37 @@ export const TeacherPanel: React.FC = () => {
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-2">
                         <p className="font-mono font-bold text-blue-600">{student.userId}</p>
-                        <button 
-                          onClick={() => {
-                            navigator.clipboard.writeText(student.userId);
-                            toast.success('Copied!');
-                          }}
-                          className="p-1 hover:bg-blue-100 rounded-md text-blue-600 transition-colors"
-                          title="Copy ID"
-                        >
-                          <Copy size={14} />
-                        </button>
+                        <div className="flex gap-1">
+                          <button 
+                            onClick={() => {
+                              navigator.clipboard.writeText(student.userId);
+                              toast.success('ID Copied!');
+                            }}
+                            className="p-1 hover:bg-blue-100 rounded-md text-blue-600 transition-colors"
+                            title="Copy ID"
+                          >
+                            <Copy size={14} />
+                          </button>
+                          <button 
+                            onClick={() => {
+                              const loginInfo = `Name: ${student.name}\nID: ${student.userId}`;
+                              navigator.clipboard.writeText(loginInfo);
+                              toast.success('Login Info Copied!');
+                            }}
+                            className="p-1 hover:bg-blue-100 rounded-md text-blue-600 transition-colors"
+                            title="Copy Name & ID"
+                          >
+                            <User size={14} />
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-xs text-slate-400">{t.lastActive}: {student.lastActive?.toDate().toLocaleDateString()}</p>
+                      <p className="text-xs text-slate-400">{t.lastActive}: {student.lastActive?.toDate().toLocaleString()}</p>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="text-sm">
+                        <p className="font-medium">{usersMap[student.userId]?.phone || 'N/A'}</p>
+                        <p className="text-slate-500">{usersMap[student.userId]?.age ? `${usersMap[student.userId].age} ${t.age}` : ''}</p>
+                      </div>
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-2">
@@ -1241,7 +1305,9 @@ export const TeacherPanel: React.FC = () => {
             </table>
             {studentsProgress.length === 0 && (
               <div className="text-center py-12 text-slate-400 italic">
-                {language === 'en' ? 'No students found' : 'വിദ്യാർത്ഥികളെ കണ്ടെത്തിയില്ല'}
+                {language === 'en' 
+                  ? 'No approved students found. Please check "Registration Requests" to approve new students.' 
+                  : 'അംഗീകരിച്ച വിദ്യാർത്ഥികളെ കണ്ടെത്തിയില്ല. പുതിയ വിദ്യാർത്ഥികളെ അംഗീകരിക്കുന്നതിന് "രജിസ്ട്രേഷൻ അപേക്ഷകൾ" പരിശോധിക്കുക.'}
               </div>
             )}
           </div>
@@ -1298,6 +1364,7 @@ export const TeacherPanel: React.FC = () => {
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <p className="font-bold text-lg">{res.studentName}</p>
+                            {res.userId && <p className="text-xs font-mono text-blue-600 font-bold">ID: {res.userId}</p>}
                             <p className="text-xs text-slate-500">{res.timestamp?.toDate().toLocaleString()}</p>
                           </div>
                           <p className="text-2xl font-black text-purple-600">{res.score}/{res.total}</p>
